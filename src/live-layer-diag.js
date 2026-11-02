@@ -15,6 +15,15 @@
 // 逐秒心跳 tick 只在 localStorage.weLiveDebug === "1" 时打（默认关：一秒一条
 // 会刷屏，也会给环形缓冲刷出无用的像素请求）。
 const LIVE_DIAG_KEY = "weLiveDebug";
+/**
+ * **活动计数**（dynapaper 的 `activity(Ns)` 同构）：60s beat 里带一行，事后能回答
+ * "这台机器在某个相位到底在轮询什么、频率多少"，而不必靠外部性能计数器猜。
+ *
+ * 只放**跨模块**的那几个（谁产生谁 +1）：媒体同步拍数、遮挡轮询拍数、遮挡停车次数。
+ * 计数是普通的 `+= 1`，没有性能顾虑；读取点只有 60s 一条的 beat。
+ * ⚠️ 单元/台架按文件单独 import 时它可能不存在 ⇒ 生产点一律用 `typeof` 守卫。
+ */
+const weActivity = { mediaSync: 0, occlPoll: 0, occlPark: 0 };
 // 诊断代码版本 + 页面实例 id：日志里带着它们，事后能回答两个必问的问题 ——
 // 「这一行是哪个 bundle 打的」（刷新是否真的生效）和「是哪个页面/窗口在跑引擎」
 // （同时开两个 DSH 视图时，两个客户端会各自轮换、互相覆盖设置）。
@@ -126,6 +135,15 @@ function installLiveDiagnostics() {
           + " liveOn=" + (selection.sceneLiveActive ? 1 : 0)
           + (w ? " watch=" + w.wid + " first=" + (w.firstFrame ? 1 : 0) + " held=" + w.heldPaused + " stall=" + w.stall : " watch=-")
           + " fails=" + Object.keys(selection.sceneLiveFailures || {}).length));
+        // 活动计数（见 weActivity 的注释）：60s 一条、与性能基准的相位对账用。
+        try {
+          liveLog("activity", "mediaSync=" + weActivity.mediaSync
+            + " occlPoll=" + weActivity.occlPoll
+            + " occlPark=" + weActivity.occlPark
+            + " hidden=" + (doc && doc.hidden ? 1 : 0)
+            + " playing=" + (typeof isEffectivelyPlaying === "function" && isEffectivelyPlaying() ? 1 : 0)
+            + " reason=" + (typeof occlusionReason === "function" ? (occlusionReason() || "-") : "-"), "info", true);
+        } catch { /* 计数失败不影响心跳 */ }
       }, 60000);
       cleanups.push(function () { try { clearInterval(beatTimer); } catch { /* ignore */ } });
     }
@@ -139,4 +157,5 @@ function installLiveDiagnostics() {
 }
 
 
-export { liveLog, liveStateBrief, liveDiagVerbose, installLiveDiagnostics, liveDiagOn };
+export { liveLog, liveStateBrief, liveDiagVerbose, installLiveDiagnostics, liveDiagOn, weActivity };
+

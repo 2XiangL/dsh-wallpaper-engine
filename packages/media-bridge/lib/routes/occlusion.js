@@ -65,6 +65,10 @@ export function registerOcclusionRoutes(webServer, c) {
         return;
       }
       const t0 = Date.now();
+      // **懒启动**：这条路由就是 hub 的唯一消费者（客户端只在 scene 实时渲染层在场时
+      // 才轮询它）。没人问就不该连 X11 / 起心跳 —— 尤其 Windows 上根本没有候选环境。
+      // ensureStarted 幂等且不外抛；本拍仍按当前（降级）快照如实回答。
+      if (typeof hub.ensureStarted === 'function') hub.ensureStarted();
       const snap = hub.getSnapshot();
       // hub.getSnapshot() 永不抛错（含降级态）——这里不需要 try/catch。
       http.sendJson(res, 200, snap);

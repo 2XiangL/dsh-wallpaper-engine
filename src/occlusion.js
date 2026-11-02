@@ -79,6 +79,7 @@ function stopOcclusionPolling() {
 }
 
 function occlusionTick() {
+  try { if (typeof weActivity !== "undefined") weActivity.occlPoll += 1; } catch { /* 计数不该影响轮询 */ }
   const frame = occlusionFrame;
   if (!frame || !frame.isConnected || occlusionInflight) return;
   if (document.hidden) return; // 隐藏页渲染器冻结；恢复时 visibilitychange 补拍
@@ -150,6 +151,7 @@ function deliverOcclusionSnapshot(frame, snap, targetOrigin) {
   // 自动恢复路径）。一旦看到真的 backend 就立刻回 1Hz —— 3s 陈旧线的契约不能松。
   if (snap && snap.backend === 'none') {
     occlusionNoBackend += 1;
+    try { if (typeof weActivity !== "undefined") weActivity.occlPark += 1; } catch { /* ignore */ }
     if (occlusionNoBackend === OCCLUSION_BACKOFF_AFTER && occlusionTimer) {
       clearInterval(occlusionTimer);
       occlusionTimer = setInterval(occlusionTick, OCCLUSION_IDLE_MS);
@@ -226,3 +228,5 @@ function deliverOcclusionOp(frame, op, occluders, epoch, gen, targetOrigin) {
     // contentWindow 可能恰好在换源（about:blank 互斥）：丢这一拍，下一跳重发。
   }
 }
+
+

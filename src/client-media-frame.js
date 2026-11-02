@@ -451,6 +451,7 @@ function reconcileMediaSync() {
 }
 function mediaSyncTick() {
   mediaSyncTimer = 0;
+  try { if (typeof weActivity !== "undefined") weActivity.mediaSync += 1; } catch { /* 计数不该影响调度 */ }
   const frame = mediaSyncFrame;
   if (!frame) return;
   // 不满足就**停链**（不排下一拍），复活交给 reconcileMediaSync。
@@ -613,3 +614,4 @@ function renderUserPropsPanel() {
     onReset: resetUserProps,
   });
 }
+

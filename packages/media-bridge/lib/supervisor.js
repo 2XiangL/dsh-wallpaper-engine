@@ -98,11 +98,15 @@ const RESTART_WINDOW_MS = 5 * 60 * 1000;
  *  客户端却因为 `running===false` 不把音频交给壁纸。 */
 const STATUS_REFRESH_MS = 5000;
 
+// 空闲停进程阈值。默认 **90s**（原 15min）：这条链只有在场景/网页壁纸在屏时才被
+// 20Hz 读，一旦切到视频/静态壁纸，客户端（本轮起）立刻停链 —— 此时若还按 15min 计时，
+// 一个 20MB 的子进程会带着一路系统音频采集白跑一刻钟。90s 是"切回场景壁纸还想再看一眼
+// 歌词"与"关掉就还资源"之间的折中；`DSH_WE_MEDIA_IDLE_MS=0` 仍可整体关掉空闲退出。
 const IDLE_STOP_MS = (() => {
   const raw = process.env.DSH_WE_MEDIA_IDLE_MS;
-  if (raw === undefined || raw === '') return 15 * 60 * 1000;
+  if (raw === undefined || raw === '') return 90 * 1000;
   const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 15 * 60 * 1000;
+  return Number.isFinite(n) && n >= 0 ? n : 90 * 1000;
 })();
 
 /** 播放态 → 旧 wire 的数值约定（0 停止 / 1 播放 / 2 暂停）。 */

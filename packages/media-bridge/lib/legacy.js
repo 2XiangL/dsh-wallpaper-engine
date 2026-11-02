@@ -193,6 +193,41 @@ export function createMediaBridge({ dataDir, cacheBaseDir = join(dataDir, 'cache
   let npTimer = null;
   let started = false;
   let stopped = false;
+  // ── 空闲退出（本轮补）────────────────────────────────────────────────────────
+  // 内置回落路径此前**没有**空闲逻辑：一旦某个场景/网页壁纸问过频谱，1s 的 Now Playing
+  // 轮询与系统音频采集（Windows 上是 ffmpeg dshow 环回、macOS 上是 Swift tap）就一直跑
+  // 到插件卸载。改成"没人读就自己睡"：读路径 touch()，空闲超过 IDLE_STOP_MS 停采集、
+  // 复位 started，下次被访问时 start() 重新拉起。上限与中间件那条同源（同一个环境变量）。
+  const IDLE_STOP_MS = (() => {
+    const raw = process.env.DSH_WE_MEDIA_IDLE_MS;
+    if (raw === undefined || raw === '') return 90 * 1000;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : 90 * 1000;
+  })();
+  let lastUsedAt = 0;
+  let idleTimer = null;
+  const touch = () => { lastUsedAt = Date.now(); };
+  /** 空闲停机：只停采集与轮询，**不**置 stopped（那不是"关掉"，是"睡着"）。 */
+  function sleepIdle() {
+    if (npTimer) { try { clearInterval(npTimer); } catch { /* ignore */ } npTimer = null; }
+    if (audioProc && audioProc.pid !== undefined) { try { audioProc.kill(); } catch { /* ignore */ } }
+    audioProc = null;
+    started = false;
+    setAudio('idle', '空闲退出（下次被访问时自动拉起）');
+    state.nowPlaying = { status: 'idle', hint: '' };
+    np = null;
+    log('内置媒体实现空闲超时，停止采集（下次被访问时自动拉起）', 'info');
+  }
+  function ensureIdleTimer() {
+    if (idleTimer || !IDLE_STOP_MS) return;
+    idleTimer = setInterval(() => {
+      if (!started || stopped) return;
+      if (Date.now() - lastUsedAt < IDLE_STOP_MS) return;
+      sleepIdle();
+    }, Math.min(30 * 1000, Math.max(5 * 1000, Math.floor(IDLE_STOP_MS / 3))));
+    // #241：同一条"宿主优雅退出不该被定时器撑住"的纪律。
+    try { idleTimer.unref?.(); } catch { /* ignore */ }
+  }
 
   const setAudio = (status, hint = '') => { state.audio = { status, hint }; };
 
@@ -435,6 +470,8 @@ export function createMediaBridge({ dataDir, cacheBaseDir = join(dataDir, 'cache
     start() {
       if (started || stopped) return;
       started = true;
+      touch();
+      ensureIdleTimer();
       log('启动内置媒体实现（音频频谱 + Now Playing）' + (audio ? '' : '（音频已在设置中关闭）'), 'info');
       // 用户关掉「系统音频反应」时不要在这里偷偷打开采集 —— 否则回落路径会重新
       // 申请音频权限、白占一路采集，与设置里的开关矛盾。
@@ -447,14 +484,16 @@ export function createMediaBridge({ dataDir, cacheBaseDir = join(dataDir, 'cache
     },
     stop() {
       stopped = true;
+      if (idleTimer) { try { clearInterval(idleTimer); } catch { /* ignore */ } idleTimer = null; }
       if (npTimer) { try { clearInterval(npTimer); } catch { /* ignore */ } npTimer = null; }
       // 判 pid 再 kill：ffmpeg 缺失时 spawn 失败 ⇒ `pid === undefined`，此时 `kill()` 会
       // 同步挂死事件循环（不抛，`try/catch` 挡不住）。pid 不在就没有进程可杀。
       if (audioProc && audioProc.pid !== undefined) { try { audioProc.kill(); } catch { /* ignore */ } }
       audioProc = null;
     },
-    spectrum: () => spectrum,
-    nowPlaying: () => np,
+    // 四条读路径都 touch()：谁在读，谁就是在用这个后端（空闲判定只看"有没有人读"）。
+    spectrum: () => { touch(); return spectrum; },
+    nowPlaying: () => { touch(); return np; },
     artworkFile: () => artworkFile,
     artworkMime: () => artworkMime,
     /**
@@ -464,6 +503,6 @@ export function createMediaBridge({ dataDir, cacheBaseDir = join(dataDir, 'cache
      * 而不是造一个假的成功。
      */
     control: () => ({ ok: false, error: 'control-unsupported' }),
-    status: () => ({ backend: 'legacy', audio: { ...state.audio }, nowPlaying: { ...state.nowPlaying } }),
+    status: () => { touch(); return { backend: 'legacy', audio: { ...state.audio }, nowPlaying: { ...state.nowPlaying } }; },
   };
 }

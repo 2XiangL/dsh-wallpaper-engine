@@ -82,6 +82,11 @@ export function createOcclusionHub({
   let disposed = false;
   let pollTimer = null;
   let retryTimer = null;
+  // 重试退避：每次重建失败把间隔翻倍（封顶 `RETRY_MAX_MS`）。Windows 上"不是 X11 会话"
+  // 是**稳态**，固定 30s 重试等于给一个永不成功的循环付永久唤醒成本；翻倍到 5 分钟后
+  // 每条流只多约 12 次唤醒/小时，而真回到 X11 会话时最坏 5 分钟自己回来。
+  let retryBackoffMs = 0;
+  const RETRY_MAX_MS = 5 * 60 * 1000;
   let lastEventAt = 0;
   // 事件触发重算只在「事件来的时机距上次计算足够远」时执行；事件风暴时退化为下一跳。
   let busy = false;
@@ -209,10 +214,18 @@ export function createOcclusionHub({
     // 重试回调直接弹回去 —— 不复位的话重试循环是死代码，降级后永不恢复
     // （评审 P1 实测复现：retry 到期 built 计数不涨）。
     started = false;
+    // 指数退避（首跳 = retryStartMs，之后翻倍封顶 RETRY_MAX_MS）；成功 start 时清零。
+    const waitMs = retryBackoffMs > 0
+      ? Math.min(retryBackoffMs * 2, RETRY_MAX_MS)
+      : retryStartMs;
+    retryBackoffMs = waitMs;
     retryTimer = setTimeout(() => {
       retryTimer = null;
       start().catch(() => { /* start 内部已降级并记录，不外抛 */ });
-    }, retryStartMs);
+    }, waitMs);
+    // #241 同一条纪律：宿主优雅退出不该被这个重试定时器撑住（此前漏了，Windows 上
+    // 它就是那个"永远存在的 30s 未 unref 定时器"）。
+    try { retryTimer.unref?.(); } catch { /* ignore */ }
   }
 
   async function start() {
@@ -231,6 +244,7 @@ export function createOcclusionHub({
       // 白 +1 gen 并打一条假降级日志污染 QA 时序。
       if (disposed) return;
       adapter.onChange(onAdapterEvent);
+      retryBackoffMs = 0; // 起来了 ⇒ 下次失败从 retryStartMs 重新起跳
       logOnce('started', `occlusion hub started (${snapshot.epoch || 'x11'})`);
       await recompute();
       pollTimer = setInterval(() => {
@@ -262,6 +276,15 @@ export function createOcclusionHub({
 
   return {
     start,
+    /**
+     * **懒启动**（幂等）：只在第一个消费者出现时才开始连 X11 / 起心跳。
+     * "装载即启动"会让「插件开着、但没人看场景壁纸」的机器白背一条 X11 套接字与 1Hz
+     * 心跳（Windows 上更糟：根本没有候选环境，只剩一条永不成功的 30s 重试）。
+     * 路由层在 `/occlusion` 的处理器里调它；start() 自带 started 幂等，重复调无代价。
+     */
+    ensureStarted() {
+      if (!started && !disposed) start().catch(() => { /* start 内部已降级并记录，不外抛 */ });
+    },
     /** 永不抛错、永不回空 —— 路由层零防御直发。返回**拷贝**：调用方原地改写
      * （含 rects 数组）不得污染其他读者（getSnapshot 的"永不抛"契约不含防改写，
      * 这里用复制把契约做实）。 */

@@ -280,10 +280,11 @@ check('D2 GET-only + 405 + sendJson 单一实现（经 c.http 面）', () => {
  *   · 主包门面**零残留**（import / 构造 / 注册都不许再出现：双构造 = 双 hub、双注册 =
  *     `webserver: duplicate … route`）。
  */
-function occlusionWiringProblems(entrySrc, facadeSrc) {
+function occlusionWiringProblems(entrySrc, facadeSrc, routeIn) {
   const problems = [];
   const entry = entrySrc.replace(/\r\n?/g, '\n');
   const facade = facadeSrc.replace(/\r\n?/g, '\n');
+  const routeSrcIn = String(routeIn === undefined ? '' : routeIn).replace(/\r\n?/g, '\n');
   const hubCtors = entry.match(/createOcclusionHub\(/g) || [];
   if (hubCtors.length !== 1) problems.push('包入口 createOcclusionHub 构造点 ' + hubCtors.length + ' 处（应恰好 1 处）');
   if (!entry.includes("import { createOcclusionHub } from './occlusion/index.js';")) problems.push('包入口缺 hub import');
@@ -292,7 +293,17 @@ function occlusionWiringProblems(entrySrc, facadeSrc) {
     problems.push('包入口 hub 构造形态不符（log/diag/两个平台符号必须逐键给）');
   }
   if (!/disposers\.push\(\(\) => occlusionHub\.dispose\(\)\);/.test(entry)) problems.push('hub dispose 没推进本组件会话的 disposers');
-  if (!/occlusionHub\.start\(\)\.catch\(/.test(entry)) problems.push('hub.start 缺 catch 兜底（would-be unhandled rejection）');
+  // ── 生命周期（本轮改口径）：**懒启动** ─────────────────────────────────────
+  // 装载期不许 start：hub 的唯一消费者是 `/occlusion` 路由，而客户端只在 scene 实时渲染层
+  // 在场时才轮询它。装载即启动 = "插件开着、没人看场景壁纸"的机器白背一条 X11 套接字 +
+  // 1Hz 心跳（Windows 上更糟：没有候选环境，只剩一条永不成功的重试）。
+  if (/occlusionHub\.start\(\)/.test(entry)) problems.push('包入口装载期就 start hub（应懒启动，见 D3 注释）');
+  if (!/ensureStarted\(\)\s*\{\s*if \(!started && !disposed\) start\(\)\.catch\(/.test(hubLibSrc)) {
+    problems.push('hub.ensureStarted 缺 `start().catch` 兜底（would-be unhandled rejection）');
+  }
+  if (!/hub\.ensureStarted\(\)/.test(routeSrcIn)) {
+    problems.push('遮挡路由没触发懒启动（hub 永远不会起，省电判据源恒为降级态）');
+  }
   // 注册调用点：必须是**单条内联字面量**（中间变量/条件注册都判红）。
   const blockMatch = entry.match(/^\s*registerOcclusionRoutes\(webServer, \{([\s\S]*?)\n\s*\}\);/m);
   if (!blockMatch) problems.push('包入口没有内联的 registerOcclusionRoutes(webServer, { … }) 调用点');
@@ -310,19 +321,26 @@ function occlusionWiringProblems(entrySrc, facadeSrc) {
 }
 const facadeSrc = readFileSync(join(ROOT, 'lib', 'index.js'), 'utf8');
 const entrySrc = readFileSync(join(PKG_ROOT, 'lib', 'index.js'), 'utf8');
-check('D3 包入口接线：唯一 hub 构造 + 生命周期 + 内联注册点 + 门面零残留', () => {
-  assert.deepEqual(occlusionWiringProblems(entrySrc, facadeSrc), []);
+// 懒启动的两端：hub 里的 `ensureStarted` 与路由里的触发点（D3 与负对照都读这两份真源码）。
+const hubLibSrc = readFileSync(join(PKG_ROOT, 'lib', 'occlusion', 'index.js'), 'utf8');
+const occlRouteSrc = readFileSync(join(PKG_ROOT, 'lib', 'routes', 'occlusion.js'), 'utf8');
+check('D3 包入口接线：唯一 hub 构造 + 懒启动生命周期 + 内联注册点 + 门面零残留', () => {
+  assert.deepEqual(occlusionWiringProblems(entrySrc, facadeSrc, occlRouteSrc), []);
 });
-check('D4 负对照：D3 判据对四类偏差都有牙（漏 hub / 门面残留第二处 / 漏 ...keys / 中间变量）', () => {
-  assert.deepEqual(occlusionWiringProblems(entrySrc, facadeSrc), []);
-  assert.ok(occlusionWiringProblems(entrySrc.replace('hub: occlusionHub,\n', ''), facadeSrc).length > 0,
+check('D4 负对照：D3 判据对六类偏差都有牙（漏 hub / 门面残留第二处 / 漏 ...keys / 中间变量 / 急启动 / 路由不触发）', () => {
+  assert.deepEqual(occlusionWiringProblems(entrySrc, facadeSrc, occlRouteSrc), []);
+  assert.ok(occlusionWiringProblems(entrySrc.replace('hub: occlusionHub,\n', ''), facadeSrc, occlRouteSrc).length > 0,
     '注册点漏 `hub` 必须判红（路由拿到 undefined hub = 静默不可用）');
-  assert.ok(occlusionWiringProblems(entrySrc, facadeSrc + '\nconst occlusionHub = createOcclusionHub({});\n').length > 0,
+  assert.ok(occlusionWiringProblems(entrySrc, facadeSrc + '\nconst occlusionHub = createOcclusionHub({});\n', routeSrc).length > 0,
     '主包残留第二处 hub 构造必须判红');
-  assert.ok(occlusionWiringProblems(entrySrc.replace('...keys, disposers, base, hub: occlusionHub,', 'disposers, base, hub: occlusionHub,'), facadeSrc).length > 0,
+  assert.ok(occlusionWiringProblems(entrySrc.replace('...keys, disposers, base, hub: occlusionHub,', 'disposers, base, hub: occlusionHub,'), facadeSrc, occlRouteSrc).length > 0,
     '注册点漏 `...keys` 必须判红（表键同源的通道断了）');
-  assert.ok(occlusionWiringProblems(entrySrc.replace('registerOcclusionRoutes(webServer, {', 'const occlusionC = {'), facadeSrc).length > 0,
+  assert.ok(occlusionWiringProblems(entrySrc.replace('registerOcclusionRoutes(webServer, {', 'const occlusionC = {'), facadeSrc, occlRouteSrc).length > 0,
     '把注册点改成中间变量必须判红（三实参内联形态）');
+  assert.ok(occlusionWiringProblems(entrySrc + '\nocclusionHub.start().catch(() => {});\n', facadeSrc, occlRouteSrc).length > 0,
+    '装载期急启动必须判红（懒启动纪律）');
+  assert.ok(occlusionWiringProblems(entrySrc, facadeSrc, routeSrc.replace(/hub\.ensureStarted\(\)/, '')).length > 0,
+    '路由不触发懒启动必须判红（hub 永远不起）');
 });
 check('D5 hub 出户后的必需注入：缺 isX11CandidateEnv / createX11Adapter 构造即抛（不静默降级）', () => {
   assert.throws(() => createOcclusionHub({ createX11Adapter: () => ({}) }), /缺[少]?必需注入|isX11CandidateEnv/);
@@ -425,3 +443,4 @@ if (process.exitCode) {
 }
 // 显式退出：断言中途失败时 hub.dispose() 不会被执行，残留的轮询/重试定时器会让进程永不退出。
 process.exit(process.exitCode || 0);
+

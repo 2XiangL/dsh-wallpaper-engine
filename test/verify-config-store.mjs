@@ -282,9 +282,12 @@ section('A. 读永不抛：缺失 / 坏 JSON / 非对象（含 JSON 数组）⇒
 check('A1 readConfig 对缺失/坏 JSON/数字/字符串/null/数组 一律回 {}，正常对象原样', readNeverThrows(realKit, dir('a1')));
 
 // 变异锚点只钉 `const o = JSON.parse(…)` 这一行 —— 谓词行会随真修改形（upload-store 那次教训）。
+// 本轮 readConfig 加了 mtime+size memo，路径先在函数体里取成局部量 `p`（不再是 inline 的
+// `configPath()`）⇒ 锚点跟着落到 `readFileSync(p, …)` 上；**钉的仍然是"解析结果"那一行**，
+// 这条变异体的语义（绕过对象校验、把非对象 JSON 原样返回）不受影响。
 const noValidation = await loadMutant('read-no-validation', (s) => s.replace(
-  'const o = JSON.parse(readFileSync(configPath(), \'utf8\'));',
-  'return JSON.parse(readFileSync(configPath(), \'utf8\'));'));
+  'const o = JSON.parse(readFileSync(p, \'utf8\'));',
+  'return JSON.parse(readFileSync(p, \'utf8\'));'));
 check('A2 负对照：变异体把解析结果原样返回 ⇒ 非对象 JSON 直通 ⇒ A1 判据判红',
   readNeverThrows(noValidation, dir('a2')) === false);
 
@@ -292,8 +295,8 @@ check('A3 数组账本上 `writeSettings` 必须真落盘（数组不是账本 �
   await arrayLedgerWriteLands(realKit, dir('a3')));
 
 const arrayNotRejected = await loadMutant('array-not-rejected', (s) => s.replace(
-  'const o = JSON.parse(readFileSync(configPath(), \'utf8\'));',
-  'const o = JSON.parse(readFileSync(configPath(), \'utf8\'));\n      if (Array.isArray(o)) return o;'));
+  'const o = JSON.parse(readFileSync(p, \'utf8\'));',
+  'const o = JSON.parse(readFileSync(p, \'utf8\'));\n      if (Array.isArray(o)) return o;'));
 check('A4 负对照：变异体删掉"数组不算账本"的裁决（数组直通）⇒ A1 与 A3 都判红',
   readNeverThrows(arrayNotRejected, dir('a4')) === false
   && await arrayLedgerWriteLands(arrayNotRejected, dir('a4b')) === false);
@@ -391,3 +394,4 @@ if (failed) {
   process.exit(1);
 }
 console.log(`ALL CONFIG-STORE CHECKS PASSED (${passed})`);
+

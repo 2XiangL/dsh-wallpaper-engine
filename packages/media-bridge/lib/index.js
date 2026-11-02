@@ -135,7 +135,10 @@ export function applyImpl(root, _rawConfig, c) {
     createX11Adapter: keys.createX11Adapter,
   });
   disposers.push(() => occlusionHub.dispose());
-  occlusionHub.start().catch(() => { /* hub.start 不外抛；兜底防 unhandled（主包原实现同款） */ });
+  // **懒启动**（本轮改动）：不再在装载期 `start()`。hub 只在第一个消费者出现时启
+  // ——即 `GET /occlusion`（客户端只在 scene 实时渲染层在场时才会轮询它）。
+  // 装载即启动会让"插件开着、没人看场景壁纸"的机器白背一条 X11 套接字 + 1Hz 心跳；
+  // Windows 上更是只剩一条永不成功的重试。start 幂等，路由每次调用 ensureStarted 无代价。
 
   // ⚠️ **注册期必须包 try**（P2-4）：本组件一次性注册**二十九条**路由（媒体状态 5 + WE 素材源 2
   // + S5c 刀2 的 9 族 21 条 + S5d 刀3 的遮挡 1 条），
