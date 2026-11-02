@@ -344,6 +344,24 @@ function glassColorOf(selection, theme) {
   return typeof other === "string" ? other : "";
 }
 
+/**
+ * 壁纸这一帧会不会变（`glassMotionMode=auto` 降级的唯一输入）。
+ *
+ * 判据取**意图 × 真实播放态**：`selection.playing`（用户意图）且 `isEffectivelyPlaying()`
+ * （没被遮挡 / 隐藏 / 电池档暂停）。视频与实时渲染（scene/web live）算"在动"；静态图永不。
+ * 判不出来一律按"不动"处理 —— 宁可多花电，也不让玻璃莫名降级。
+ */
+function wallpaperMotionOn() {
+  try {
+    if (selection.glassMotionMode === "full") return false;
+    if (!selection.playing) return false;
+    if (typeof isEffectivelyPlaying === "function" && !isEffectivelyPlaying()) return false;
+    if (selection.type === "video") return true;
+    if ((selection.type === "scene" || selection.type === "web") && selection.sceneLiveActive === true) return true;
+  } catch { /* 判定异常按"不动"处理 */ }
+  return false;
+}
+
 function applyEffects(opts) {
   // `live` = 拖动期的每一格（色板 / 滑块）。那些格子里只有"与本次改动相关的那几个样式"
   // 需要更新，而下面几步与拖动无关却都不便宜 ⇒ 拖动期跳过、抬手那一次（无 opts）照跑：
@@ -513,6 +531,11 @@ function applyEffects(opts) {
   if (detectMicaSupport() === false) document.body.setAttribute("data-we-mica", "off");
   else document.body.removeAttribute("data-we-mica");
 
+  // 动壁纸门（玻璃降级的输入，判据见 wallpaperMotionOn）：壁纸在动时把消息气泡族的
+  // backdrop-filter 摘掉，其余面不动。与其它 body 钩子一样成对清理（见 clearEffects）。
+  if (wallpaperMotionOn()) document.body.setAttribute("data-we-wallpaper-motion", "on");
+  else document.body.removeAttribute("data-we-wallpaper-motion");
+
   if (!live) {
     // 字体自定义：**已无任何全局字体配置** —— 只剩「按角色」（颜色/排版/字重/字族，见
     // src/font/color-roles.js 与 typography.js）与「按组件」（src/font/components.js）
@@ -590,6 +613,7 @@ function clearEffects() {
   //    全局玻璃量 / 逐面釉层变量 / 门控属性 / 软渲染钩子 / 额外补雾化标签都由那一层成对收走。
   document.body.removeAttribute("data-we-adapter"); // 适配目标钩子随 fiber 注销
   document.body.removeAttribute("data-we-mica"); // #73 Mica 能力钩子随 fiber 注销
+  document.body.removeAttribute("data-we-wallpaper-motion"); // 动壁纸降级门随 fiber 注销（与写入成对）
   // 画布兜底色写在根元素上（见 src/live-layer.js 的 refreshUnderlayColor）：它不在
   // body 的变量表里，必须显式撤掉 —— 否则禁用插件后根元素会一直带着上一张壁纸的颜色。
   clearUnderlayColor();

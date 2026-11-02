@@ -44,6 +44,7 @@
 | [CHANGELOG.md](./CHANGELOG.md) | **变更记录** —— 逐版本功能与修复（新版在前）。**英文版在 [`en/CHANGELOG.md`](./en/CHANGELOG.md)**（与其它文档同布局：basename 相同、顶部互换链接） |
 | [HOW-IT-WORKS.md](./HOW-IT-WORKS.md) | **工作原理** —— 出图来源链（实时渲染 → 内嵌 MP4 → 实时抓帧 → 自定义画面 → 空态）、宿主 / 客户端分工、**字体集通道**、遮挡暂停与客户端异常留痕、路由族总览（路径表见 [`ROUTE-INDEX.md`](./ROUTE-INDEX.md)）；**含「共存」一节**（玻璃表面与其它 UI 插件、逐面回退、插件作者声明与排查） |
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | **排障** —— 安装失败排查与「症状 → 先看哪里」速查 |
+| [perf/RESOURCE-OPTIMIZATION.md](./perf/RESOURCE-OPTIMIZATION.md) | **资源占用：调研与验收** —— 两个项目（本插件 / dynapaper）的资源模型对比、相位实测、开销归因、dynapaper 手法可转移性裁定、已实施项、未实施项与理由、A/B/C 三类验收标准、复现命令；**实测数字的原始记录在 [`perf/MEASUREMENTS.md`](./perf/MEASUREMENTS.md)** |
 
 **分层约定**：门面 `README.md` / `README.en.md` 只放**不随版本变化、且新访客决策必需**的事实；
 任何**带版本号 / issue 号 / 性能数字 / 排障步骤 / 实现细节**的内容一律进上表或 `CHANGELOG.md`

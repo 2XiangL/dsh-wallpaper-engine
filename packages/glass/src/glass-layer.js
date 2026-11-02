@@ -281,6 +281,13 @@ function applyGlassLayer() {
   // 弹层改用与 @supports 回退完全相同的配方，并显式 backdrop-filter: none。
   if (detectSoftwareRender()) document.body.setAttribute("data-we-glass-fallback", "1");
   else document.body.removeAttribute("data-we-glass-fallback");
+
+  // 雾化拉到 0 的门（**真的**关掉 backdrop-filter）：只要表达式还在，即使 blur(0px)，
+  // Chromium 仍要为该面读一遍 backdrop 并建 render surface —— "零模糊"不等于零成本。
+  // 只按**全局**雾化判定：各面的自定义模糊（sidebarBlur / settingsWindowBlur…）有自己的
+  // 键，全局 0 但某面自带模糊时那一面仍应按自己的值画（它读的是自己的变量，不在本门内）。
+  if (Number(selection.blur) === 0) document.body.setAttribute("data-we-blur-zero", "on");
+  else document.body.removeAttribute("data-we-blur-zero");
 }
 
 /**
@@ -340,6 +347,7 @@ function disposeGlassLayer() {
   document.body.removeAttribute("data-we-sidebar-glass");
   document.body.removeAttribute("data-we-sidebar-fullclear");
   document.body.removeAttribute("data-we-glass-fallback"); // #95 软件渲染回退钩子随层注销
+  document.body.removeAttribute("data-we-blur-zero"); // 雾化=0 的霜关闭门随层注销（与写入成对）
   s.removeProperty("--we-content-surface-alpha");
   s.removeProperty("--we-content-surface-color");
   // ⚠️ W2–W4 新增的**按面釉层变量**同样要撤（否则卸载后残留的变量值会继续被

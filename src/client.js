@@ -2696,6 +2696,8 @@ const onCaretColor = (hex, live) => {
 };
 
 function onSidebarGlass(e) { setSetting("sidebarGlass", e.target.checked); emit(); }
+// 动壁纸降级玻璃：开关只翻两档之一（auto = 降级，full = 始终原配方）。
+function onGlassMotionMode(e) { setSetting("glassMotionMode", e.target.checked ? "auto" : "full"); emit(); }
 // 侧栏全透明（issue #137）：显式放弃可读性下限。与 onSidebarGlass 同形 —— 门控属性
 //（data-we-sidebar-fullclear）由 applyGlass 挂/摘，CSS 那组规则只认属性。
 function onSidebarFullClear(e) { setSetting("sidebarFullClear", e.target.checked); emit(); }
@@ -4732,7 +4734,7 @@ function WallpaperPicker() {
       uiColorOpen: pickerUiColorOpen, onToggleUiColorSection: togglePickerUiColorSection,
       onToggleUiColorCustom, onUiColorElement,
       onGlassSurfacePolicy, surfaceStatus: weGlassSurfaceStatus(),
-      officialColorOf, onAccent, onCapsuleBlur, onCapsuleColor, onBlur, onBorder, onCaretColor, onChatGlassFidelity, onComponentFamily, onComponentFont, onExtraGlassSelectors, onFontAdvanced, onFontResetAll, onGlassAlpha, onGlassColor, onGlassDarkSeparate, onGlassFidelity, onGlobalFamily, onLeftSidebarGlass, onTitlebarGlass, onRefreshSystemFonts, onSidebarAllCorners, onSidebarAlpha, onSidebarBlur, onSidebarColor, onSidebarContentAlpha, onSidebarContentColor, onSidebarCornerRadius, onSidebarCornerSquare, onSidebarFollowGlobal, onSidebarGlass, onSidebarFullClear, onThemeColor, onThemeColorClear, onThemeDarkSeparate, onThemeFamily, onThemeSize, onThemeTypeOnly, onThemeWeight, onThinkingMode, onToggleFontCustom, onToggleThemeFollow, sel,
+      officialColorOf, onAccent, onCapsuleBlur, onCapsuleColor, onBlur, onBorder, onCaretColor, onChatGlassFidelity, onComponentFamily, onComponentFont, onExtraGlassSelectors, onFontAdvanced, onFontResetAll, onGlassAlpha, onGlassColor, onGlassDarkSeparate, onGlassFidelity, onGlobalFamily, onGlassMotionMode, onLeftSidebarGlass, onTitlebarGlass, onRefreshSystemFonts, onSidebarAllCorners, onSidebarAlpha, onSidebarBlur, onSidebarColor, onSidebarContentAlpha, onSidebarContentColor, onSidebarCornerRadius, onSidebarCornerSquare, onSidebarFollowGlobal, onSidebarGlass, onSidebarFullClear, onThemeColor, onThemeColorClear, onThemeDarkSeparate, onThemeFamily, onThemeSize, onThemeTypeOnly, onThemeWeight, onThinkingMode, onToggleFontCustom, onToggleThemeFollow, sel,
       // 玻璃 UI 子项开关 + 独立配置 + 独立参数（见 onToggleChildIndependent 那段注释）
       onToggleChildIndependent, onGlassChildParam, childIndependentOn,
       // 二次修订：设置页也**支持隐藏**这几节（默认全展开）——

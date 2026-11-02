@@ -529,6 +529,31 @@ const CSS_GLASS = `
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
       0 12px 40px rgba(0, 0, 0, var(--we-glass-shadow, 0.12));
   }
+  /* ── 雾化=0 的**真关闭**（门由玻璃层写，见 glass-layer.js 的 data-we-blur-zero）────────
+     用户把「雾化」拉到 0 时，载体表达式仍是 blur(0px) saturate(…) —— 语法上是零模糊，
+     但 Chromium 照样为该面读一遍 backdrop 并建 render surface。这里把**读全局 --we-blur**
+     的对话栏载体显式置 none：各面自带模糊键（sidebarBlur / settingsWindowBlur …）的面
+     不在此列，它们按自己的值画。!important 与软渲回退同款（基础规则属性选择器更多）。 */
+  body[data-we-blur-zero] [data-composer-card]::before,
+  body[data-we-blur-zero] [class*="_bubble"]:not([role="tooltip"]),
+  body[data-we-blur-zero] [data-question-key] [class*="_card"],
+  body[data-we-blur-zero] [data-plan-review-key] [class*="_card"],
+  body[data-we-blur-zero] [data-approval-key] [class*="_card"],
+  body[data-we-blur-zero] [data-turn-trigger] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  /* ── 动壁纸降级（glassMotionMode=auto；输入见 src/effects.js 的 wallpaperMotionOn）────
+     壁纸在动 ⇒ 每个玻璃面的 backdrop 每帧都变 ⇒ 每个面每帧重新采样一次；气泡是数量
+     随对话增长的那一族（也是这条成本的大头）。降级 = 摘霜 + 抬到**近不透明底**：
+     只摘霜不抬底会让正文压在花哨的动壁纸上（可读性下限是红线），所以底色一起给。
+     !important 是必须的：基础规则的属性选择器更多，同权重压不住（与软渲回退同款）。
+     带 :not([role="tooltip"]) 与上面三条同办（#161）：宿主 Tooltip 从来不吃插件霜釉。 */
+  body[data-we-glass-chat][data-we-glass-page][data-we-wallpaper-motion="on"] [class*="_bubble"]:not([role="tooltip"]) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background-color: color-mix(in srgb, var(--we-glass-color, #101418) 92%, transparent) !important;
+  }
   /* ── 思考触发条（TurnTriggerNodeView，DOM 锚点 section[data-turn-trigger]）──────────
      ⚠️ 门 = 上游 #134 的「思考块液态玻璃」（属性 data-we-thinking-glass，默认关）：这一面是它
      **门下的**一员 —— 开关关着时下面整组不生效（宿主令牌不被接管、模糊不挂）⇒ 「关 = 逐字节

@@ -391,7 +391,7 @@ function renderAppearanceGlassSection(ctx) {
     onBlur, onGlassAlpha, onGlassChildParam, onGlassColor, onGlassDarkSeparate, onExtraGlassSelectors, onGlassFidelity,
     onToggleChildIndependent, childIndependentOn, sel, surface, onResetModule,
     onCapsuleBlur, onCapsuleColor,
-    onLeftSidebarGlass, onTitlebarGlass, onSidebarAlpha, onSidebarBlur, onSidebarColor,
+    onLeftSidebarGlass, onTitlebarGlass, onGlassMotionMode, onSidebarAlpha, onSidebarBlur, onSidebarColor,
     onSidebarContentAlpha, onSidebarContentColor, onSidebarGlass,
     onSidebarFollowGlobal, onSidebarFullClear,
     onThinkingMode, glassDetailOpen, onToggleGlassDetail, glassUiOpen, onToggleGlassUiSection,
@@ -779,6 +779,13 @@ function renderAppearanceGlassSection(ctx) {
       // 变量、同一条可读性下限、同一条玻璃色 ⇒ 两侧栏在同一数值下同观感，不出现色差。
       // ⚠️ 与左侧栏同为**乙类**（关 = 恢复宿主那条不透明底），所以同为**总开关级**（两档都画）；
       //    它的「独立配置」层属高级配置，在节尾折叠块里（D4 表见函数头）。
+      // 动壁纸降级（glassMotionMode）：壁纸在动时把气泡族的霜摘掉换近不透明底 ——
+      // 这是"合成成本随壁纸动起来而放大"那条结构性代价的唯一开关（语义见 settings-schema）。
+      switchRow(weT("动壁纸时降级气泡玻璃"), sel.glassMotionMode !== "full", onGlassMotionMode, {
+        key: "glass-motion-mode",
+        hint: weT("视频 / 实时渲染壁纸播放时，消息气泡改用近不透明底（省合成开销）"),
+        tooltip: weT("只要页面上有 backdrop-filter，壁纸这层就要先离屏合成再被逐面读回；壁纸在动时每个玻璃面的背景每帧都变，等于每帧重采样一遍。打开后：视频 / 场景 / 网页壁纸播放期间，消息气泡改用近不透明底（可读性下限不变），输入卡与侧栏面不动；静态图片或暂停时自动恢复原样。默认关：这条会改变气泡面的观感，收益还没在真机 A/B 上坐实（见 docs/perf/RESOURCE-OPTIMIZATION.md），确认可接受再打开。"),
+      }),
       switchRow(weT("标题栏液态玻璃"), sel.titlebarGlass === true, onTitlebarGlass, {
         key: "titlebar-glass",
         hint: weT("标题栏也跟随玻璃配方（配色 / 玻璃颜色 / 透明度 / 雾化 / 边框）"),
