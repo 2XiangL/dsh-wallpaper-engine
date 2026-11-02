@@ -326,6 +326,7 @@ const WE_I18N_EN_PANEL = {
   "类似 WE 的遮挡暂停：最小化、切到其它应用或使用电池供电时视频暂停、GPU 解码归零；回到界面 / 接通电源自动继续（网页壁纸仅随页面隐藏被浏览器节流）": "WE-like occlusion pause: video pauses and GPU decoding drops to zero when minimized, switched to another app, or on battery; it resumes automatically when you return / plug in (web wallpapers are only throttled by the browser while the page is hidden)",
   "省电": "Power saving",
   "最小化/切页时暂停": "Pause when minimized / switched away",
+  "被其它应用盖住时暂停": "Pause when covered by another app",
   "窗口失焦时暂停": "Pause when the window loses focus",
   "「窗口失焦时暂停」只在原生浏览器目标下提供 —— 桌面壳失焦时壁纸仍可见，暂停会定格可见画面{note}": "\"Pause when the window loses focus\" is only offered for the plain browser target — in a desktop shell the wallpaper stays visible when the window is unfocused, so pausing would freeze a visible frame{note}",
   "（当前已开启，本目标下不生效，切到浏览器目标后恢复）": "(currently enabled, but has no effect for this target; it takes effect again on the browser target)",

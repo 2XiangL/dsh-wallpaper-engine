@@ -174,6 +174,10 @@ let uiFpsSince = 0;
 const uiNow = () => (typeof performance !== "undefined" && performance && typeof performance.now === "function")
   ? performance.now() : 0;
 function startUiFpsProbe() {
+  // **只在"诊断详读"开着时跑**：这是一条常驻 vsync rAF 链，唯一的消费者是每 5s 一条的
+  // `live-fps` 诊断行。平时让它跑＝页面永远没有真正空闲的帧（dynapaper 那套"不可见/
+  // 不需要就完全静止"在这里的同构写法）。关掉诊断时 `ui=` 如实报 `-`，不猜。
+  if (typeof liveDiagVerbose === "function" && !liveDiagVerbose()) return;
   if (uiFpsRaf || typeof requestAnimationFrame !== "function") return;
   uiFpsFrames = 0;
   uiFpsSince = uiNow();
@@ -306,6 +310,13 @@ function startLiveWatch(frame, wid) {
     // resume/pause），保持这个顺序让读数不受任何控制调用的副作用影响。
     const stats = liveStats(frame);
     applyLiveControls(frame);
+    // 媒体同步（频谱 / Now Playing）按状态对账：它在"暂停 / 隐藏 / 不在播"时**停链**，
+    // 只靠事件会漏（例如窗口失焦档由原生模态吃了事件），所以在 1s 心跳里兜一次。
+    // 幂等：该跑就排一拍，不该跑就 clearTimeout（不新增任何周期）。
+    try { reconcileMediaSync(); } catch { /* 媒体侧异常不许带崩看护 */ }
+    // UI 帧率探针跟着诊断开关走（见 startUiFpsProbe 的注释）：打开诊断要能就地起、
+    // 关掉要能就地停，不能等到下次建层。
+    try { if (!liveDiagVerbose()) stopUiFpsProbe(); else startUiFpsProbe(); } catch { /* ignore */ }
     const isWeb = selection.type === "web";
     const wstate = isWeb ? liveStateOf(frame) : null;
     const alive = liveHeartbeatAlive(frame, stats, wstate, isWeb);

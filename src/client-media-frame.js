@@ -166,7 +166,11 @@ function markGpuFramePin(token, pinned) {
 // —— 封面经宿主代理 URL（同源）。壁纸没有监听器时两者都无副作用。
 // 控制：同一族还有**反向**一路 —— 壁纸里的播放按钮经 __wp.setMediaControl 回到
 // 宿主 POST /media-control（见 syncMediaControl）；它随数据面一起装、一起卸。
-let mediaTimer = 0;
+// 媒体同步（频谱 / Now Playing）：**自调度链 + 状态闸**，不是常驻 interval。
+// 见下方 startMediaSync / mediaSyncWanted / reconcileMediaSync 的注释。
+const MEDIA_SYNC_MS = 50;
+let mediaSyncFrame = null;   // 当前同步的是哪一帧（null = 没在同步）
+let mediaSyncTimer = 0;      // 自调度链的下一拍（0 = 链已停）
 let mediaSpectrum = null;
 let mediaAudioInstalled = false;   // 音频桥当前是否已装进渲染页
 let mediaNpKey = "";
@@ -402,7 +406,8 @@ function scheduleArtworkFetch(frame, m, artKey, hasArt) {
   }, slow ? MEDIA_ART_SLOW_MS : Math.min(700 * mediaArtTries, 4000));
 }
 function stopMediaSync(frame) {
-  if (mediaTimer) { try { clearInterval(mediaTimer); } catch { /* ignore */ } mediaTimer = 0; }
+  mediaSyncFrame = null;
+  mediaSyncStop();
   if (mediaArtTimer) { try { clearTimeout(mediaArtTimer); } catch { /* ignore */ } mediaArtTimer = 0; }
   mediaArtTimerSlow = false;
   mediaNpKey = "";
@@ -424,62 +429,90 @@ function stopMediaSync(frame) {
     if (typeof wp.setMediaControl === "function") wp.setMediaControl(null);
   } catch { /* ignore */ }
 }
+/**
+ * 媒体同步是否**该跑**：live 帧在场 + 在播 + 页面可见。
+ * 暂停期 / 隐藏期一律不跑 —— 旧形态是常驻 50ms `setInterval`，暂停与隐藏期间照样
+ * 20 次/秒打 `/audio-spectrum`（宿主每个请求还要同步读一次 config.json，见
+ * `packages/media-bridge/lib/routes/now-playing.js` 的 ensureMedia）。
+ */
+function mediaSyncWanted() {
+  if (!mediaSyncFrame) return false;
+  if (selection.sceneLiveActive !== true) return false;
+  if (typeof document !== "undefined" && document.hidden === true) return false;
+  return isEffectivelyPlaying();
+}
+function mediaSyncStop() {
+  if (mediaSyncTimer) { try { clearTimeout(mediaSyncTimer); } catch { /* ignore */ } mediaSyncTimer = 0; }
+}
+/** 对账：该跑就排一拍，不该跑就停链（由 1s 看护心跳与暂停/可见性变化调用）。 */
+function reconcileMediaSync() {
+  if (!mediaSyncWanted()) { mediaSyncStop(); return; }
+  if (!mediaSyncTimer) mediaSyncTimer = setTimeout(mediaSyncTick, 0);
+}
+function mediaSyncTick() {
+  mediaSyncTimer = 0;
+  const frame = mediaSyncFrame;
+  if (!frame) return;
+  // 不满足就**停链**（不排下一拍），复活交给 reconcileMediaSync。
+  if (!mediaSyncWanted() || !frame.isConnected) return;
+  const wantSpectrum = selection.audioSource !== "off";
+  const wantNp = selection.mediaIntegration !== false;
+  // 控制面与「有没有在播」无关（见 syncMediaControl），但和数据面同一道设置闸：
+  // 关掉「媒体信息」= 不接系统媒体，壁纸按钮便回落渲染页自己的模拟源。
+  if (wantNp) syncMediaControl(frame);
+  if (wantSpectrum && !mediaFetchBusy) {
+    mediaFetchBusy = true;
+    apiJson("/audio-spectrum")
+      .then((res) => {
+        const d = res.data;
+        if (!d || !d.ok) return;
+        if (Array.isArray(d.bands) && d.bands.length) {
+          const arr = new Float32Array(d.bands.length);
+          for (let i = 0; i < d.bands.length; i++) arr[i] = (d.bands[i] || 0) / 255;
+          mediaSpectrum = arr;
+        }
+        // 装桥的时机交给宿主的 running（见 syncAudioBridge 的说明）
+        syncAudioBridge(frame, d.running === true);
+      })
+      .catch(() => { /* 静默：保持现状，回落模拟源 */ })
+      .finally(() => { mediaFetchBusy = false; });
+  }
+  if (wantNp && ++mediaNpTick % 20 === 0) {
+    apiJson("/now-playing")
+      .then((res) => {
+        const d = res.data;
+        if (!d || !d.ok) return;
+        const m = d.media || null;
+        // key 里带歌词版本：歌词是异步到齐的（本地 .lrc → 缓存 → 在线），
+        // 到齐时 title/position 都没变 —— 不带它就不会再推一帧，壁纸永远拿不到歌词。
+        const lyr = m && Array.isArray(m.lyrics) ? m.lyrics : [];
+        const lyrRev = lyr.length ? lyr.length + ":" + String(lyr[lyr.length - 1][1] || "").length : 0;
+        const key = m ? [m.title, m.artist, m.playing ? 1 : 0, Math.floor((m.position || 0) / 5), lyrRev].join("\u0000") : "";
+        if (key === mediaNpKey) return;
+        mediaNpKey = key;
+        // 换曲：清掉上一首的封面缓存与重试计数（position 每 5 秒变一次 key，
+        // 封面只在曲目变化时重新取，不会每 5 秒重下一次）。
+        const artKey = m ? [m.title, m.artist, m.album].join("\u0000") : "";
+        if (artKey !== mediaArtKey) {
+          mediaArtKey = artKey;
+          mediaArtData = "";
+          mediaArtTries = 0;
+          if (mediaArtTimer) { try { clearTimeout(mediaArtTimer); } catch { /* ignore */ } mediaArtTimer = 0; }
+        }
+        // 先推一版（可能还没封面，壁纸至少能立刻更新歌名/歌手），封面到位后再推一次。
+        pushMediaSnapshot(frame, m);
+        if (m && m.playing && !mediaArtData) scheduleArtworkFetch(frame, m, artKey, d.hasArtwork !== false);
+      })
+      .catch(() => { /* 静默 */ });
+  }
+  mediaSyncTimer = setTimeout(mediaSyncTick, MEDIA_SYNC_MS);
+}
 function startMediaSync(frame) {
   stopMediaSync(frame);
   if (selection.audioSource === "off" && selection.mediaIntegration === false) return;
-  const wantSpectrum = selection.audioSource !== "off";
-  const wantNp = selection.mediaIntegration !== false;
-  mediaTimer = setInterval(() => {
-    if (!frame.isConnected || !selection.sceneLiveActive) return;
-    // 控制面与「有没有在播」无关（见 syncMediaControl），但和数据面同一道设置闸：
-    // 关掉「媒体信息」= 不接系统媒体，壁纸按钮便回落渲染页自己的模拟源。
-    if (wantNp) syncMediaControl(frame);
-    if (wantSpectrum && !mediaFetchBusy) {
-      mediaFetchBusy = true;
-      apiJson("/audio-spectrum")
-        .then((res) => {
-          const d = res.data;
-          if (!d || !d.ok) return;
-          if (Array.isArray(d.bands) && d.bands.length) {
-            const arr = new Float32Array(d.bands.length);
-            for (let i = 0; i < d.bands.length; i++) arr[i] = (d.bands[i] || 0) / 255;
-            mediaSpectrum = arr;
-          }
-          // 装桥的时机交给宿主的 running（见 syncAudioBridge 的说明）
-          syncAudioBridge(frame, d.running === true);
-        })
-        .catch(() => { /* 静默：保持现状，回落模拟源 */ })
-        .finally(() => { mediaFetchBusy = false; });
-    }
-    if (wantNp && ++mediaNpTick % 20 === 0) {
-      apiJson("/now-playing")
-        .then((res) => {
-          const d = res.data;
-          if (!d || !d.ok) return;
-          const m = d.media || null;
-          // key 里带歌词版本：歌词是异步到齐的（本地 .lrc → 缓存 → 在线），
-          // 到齐时 title/position 都没变 —— 不带它就不会再推一帧，壁纸永远拿不到歌词。
-          const lyr = m && Array.isArray(m.lyrics) ? m.lyrics : [];
-          const lyrRev = lyr.length ? lyr.length + ":" + String(lyr[lyr.length - 1][1] || "").length : 0;
-          const key = m ? [m.title, m.artist, m.playing ? 1 : 0, Math.floor((m.position || 0) / 5), lyrRev].join("\u0000") : "";
-          if (key === mediaNpKey) return;
-          mediaNpKey = key;
-          // 换曲：清掉上一首的封面缓存与重试计数（position 每 5 秒变一次 key，
-          // 封面只在曲目变化时重新取，不会每 5 秒重下一次）。
-          const artKey = m ? [m.title, m.artist, m.album].join("\u0000") : "";
-          if (artKey !== mediaArtKey) {
-            mediaArtKey = artKey;
-            mediaArtData = "";
-            mediaArtTries = 0;
-            if (mediaArtTimer) { try { clearTimeout(mediaArtTimer); } catch { /* ignore */ } mediaArtTimer = 0; }
-          }
-          // 先推一版（可能还没封面，壁纸至少能立刻更新歌名/歌手），封面到位后再推一次。
-          pushMediaSnapshot(frame, m);
-          if (m && m.playing && !mediaArtData) scheduleArtworkFetch(frame, m, artKey, d.hasArtwork !== false);
-        })
-        .catch(() => { /* 静默 */ });
-    }
-  }, 50);
+  mediaSyncFrame = frame;
+  mediaNpTick = 0;
+  reconcileMediaSync();
 }
 
 // ── GPU 抓帧主帧（单主帧 + 面积升级制）──────────────────────────────────────

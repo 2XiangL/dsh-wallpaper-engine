@@ -438,6 +438,8 @@ function teardownViolations(cleanupBody) {
     cancelUserPropsCommit() {},
     // #288：暂停持续期防抖的状态面（cleanup 会成对撤定时器 / 摘标志）。
     applyHiddenHold() {}, hiddenDebounce: 0, hiddenHoldBound: false,
+    // 遮挡代理（pauseOnCovered）的状态面：cleanup 同样要清定时器并把判定位复位。
+    coveredHoldTimer: 0, coveredHoldActive: false,
     abortMediaInfoProbe() {}, sceneVideoResyncTimer: null, weStopDraw() {},
     releaseLayerMedia(n) { m.log.push('release'); n.__released = true; },
     clearEffects() {}, setWallpaperActive() {},

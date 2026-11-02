@@ -1845,10 +1845,67 @@ let weBattery = null; // BatteryManager from navigator.getBattery (if available)
  */
 const HIDDEN_PAUSE_DEBOUNCE_MS = 1200;
 let hiddenHoldActive = false;
+/**
+ * ── 遮挡代理（`pauseOnCovered`）──────────────────────────────────────────────
+ *
+ * **为什么需要它**：桌面端拿不到"被其它窗口完全盖住"的信号 —— 宿主的遮挡 hub 只有
+ * X11 适配器（`lib/occlusion/x11.js`），而 Chromium 的窗口遮挡跟踪在本壳**不把覆盖判成
+ * hidden**（实测：用顶置不透明窗盖满整个屏幕，渲染进程仍占约六成单核、GPU 进程仍在
+ * 出帧；见 `docs/perf/MEASUREMENTS.md` 的 covered 相位）。这正是 dynapaper 桌面端
+ * "不可见即零开销"对应的那一块缺口。
+ *
+ * **为什么用代理而不是别的**：纯 Web 侧没有任何 API 能枚举其它窗口。能自证的只有三条：
+ *   ① `screen.isExtended === false`（单显示器 ⇒ 抢走焦点的那个窗口只可能压在**本窗之上**）；
+ *   ② 本窗铺满可用区（≥98% ⇒ 侧边并排的形态天然排除）；
+ *   ③ 失焦**持续** ≥ `COVER_DEBOUNCE_MS`（拖动 / 切窗 / 原生弹窗的瞬时抢焦点不触发）。
+ * 三条同时成立才判"被覆盖"。多显示器一律不判（另一个 App 可能在另一块屏上、本窗仍整块
+ * 可见）——**宁可少省电，也不定格一块看得见的壁纸**（与 `pauseOnBlur` 在桌面目标下
+ * 默认关掉同一条取舍）。
+ */
+const COVER_DEBOUNCE_MS = 1500;
+let coveredHoldActive = false;
+let coveredHoldTimer = 0;
+/** 代理是否**有资格**成立（单屏 + 满屏 + 失焦）。纯读，无副作用，可高频调用。 */
+function coverHeuristicArmed() {
+  try {
+    if (typeof window === "undefined" || typeof document === "undefined") return false;
+    if (typeof screen === "undefined" || !screen) return false;
+    // 多显示器：本窗之外的屏上可能就摆着用户正在用的 App ⇒ 壁纸仍整块可见，不暂停。
+    if (screen.isExtended !== false) return false;
+    const aw = Number(screen.availWidth) || 0;
+    const ah = Number(screen.availHeight) || 0;
+    if (!(aw > 0 && ah > 0)) return false;
+    const w = Number(window.innerWidth) || 0;
+    const h = Number(window.innerHeight) || 0;
+    if (!(w > 0 && h > 0)) return false;
+    if (w < aw * 0.98 || h < ah * 0.98) return false;
+    return !(typeof document.hasFocus === "function" && document.hasFocus());
+  } catch { return false; }
+}
+/** 重算 `coveredHoldActive`（带防抖）；由 blur/focus/resize/3s 复核共同驱动。 */
+function refreshCoveredHold() {
+  const want = selection.pauseOnCovered === true
+    && typeof document !== "undefined" && document.hidden !== true
+    && coverHeuristicArmed();
+  if (!want) {
+    if (coveredHoldTimer) { try { clearTimeout(coveredHoldTimer); } catch { /* ignore */ } coveredHoldTimer = 0; }
+    if (coveredHoldActive) { coveredHoldActive = false; emit(); }
+    return;
+  }
+  if (coveredHoldActive || coveredHoldTimer) return;
+  coveredHoldTimer = setTimeout(() => {
+    coveredHoldTimer = 0;
+    if (coveredHoldActive) return;
+    if (selection.pauseOnCovered !== true || document.hidden === true || !coverHeuristicArmed()) return;
+    coveredHoldActive = true;
+    emit();
+  }, COVER_DEBOUNCE_MS);
+}
 // 遮挡原因（可读文案；空串 = 没被遮挡）。occlusionActive 由它派生，保证「是谁把
 // 渲染页停掉的」只有一个判定源 —— 诊断日志直接引用；失焦档再经适配目标门控（桌面壳失焦时壁纸多半仍整块可见，按失焦暂停会定格**可见**画面，见 adapterCaps）。
 function occlusionReason() {
   if (selection.pauseOnHidden && hiddenHoldActive) return weT("标签页隐藏(pauseOnHidden)");
+  if (selection.pauseOnCovered && coveredHoldActive) return weT("窗口被覆盖(pauseOnCovered)");
   if (adapterCaps().blurPause && selection.pauseOnBlur && typeof document !== "undefined"
     && typeof document.hasFocus === "function" && !document.hasFocus()) return weT("窗口失焦(pauseOnBlur)");
   if (selection.pauseOnBattery && weBattery && !weBattery.charging) return weT("电池供电(pauseOnBattery)");
@@ -2687,6 +2744,12 @@ function onAdapterTarget(e) { setSetting("adapterTarget", e.target.value); emit(
 function onPauseOnHidden(e) { setSetting("pauseOnHidden", e.target.checked); emit(); }
 function onPauseOnBlur(e) { setSetting("pauseOnBlur", e.target.checked); emit(); }
 function onPauseOnBattery(e) { setSetting("pauseOnBattery", e.target.checked); emit(); }
+function onPauseOnCovered(e) {
+  setSetting("pauseOnCovered", e.target.checked);
+  // 开关一变就重算：关掉时立刻恢复，打开时立刻按当前几何/焦点状态决定要不要进入防抖。
+  try { refreshCoveredHold(); } catch { /* ignore */ }
+  emit();
+}
 function onToggleLiveDiag() { toggleLiveDiag(); emit(); }
 // ── 「扩展」页签（一号模块：点击效果与拖尾效果）的处理器 ──────────────────────
 // 形状与上面一致：控件只报事件，写设置 + 重渲染都在这里。那一层没有网络往返、"点了就有反应"是
@@ -4707,7 +4770,7 @@ function WallpaperPicker() {
       }),
       renderAdvancedTab({
         setSetting, setTransient,
-        onAdapterTarget, onEdgeCompatChange, onLayoutChange, onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, onToggleLiveDiag, sel,
+        onAdapterTarget, onEdgeCompatChange, onLayoutChange, onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, onPauseOnCovered, onToggleLiveDiag, sel,
         onStartEditCacheDir, onCancelEditCacheDir, onCacheDirDraft,
         onCacheDirBrowseInput, onCacheDirBrowseGo, onCacheDirBrowseEnter, onCacheDirBrowseUp, onPickCacheDir, onCloseCacheDirBrowse,
       }),
@@ -5988,13 +6051,22 @@ function apply(ctx) {
         document.addEventListener("visibilitychange", applyHiddenHold);
         hiddenHoldBound = true;
       }
-      const onOcclusionChange = () => emit();
+      const onOcclusionChange = () => {
+        // 先重算遮挡代理再 emit：blur/focus/visibilitychange 都是代理的输入。
+        try { refreshCoveredHold(); } catch { /* 代理失败不许带崩事件链 */ }
+        emit();
+      };
+      // 几何变化（还原 / 拖拽 / 全屏切换）也要重算：代理的三个条件里有两个是几何量。
+      // 单独绑一条**不 emit** 的监听（resize 风暴期间不该触发整树重渲染）。
+      const onCoverGeometryChange = () => { try { refreshCoveredHold(); } catch { /* ignore */ } };
       const ocListeners = [];
       if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
         for (const t of ["visibilitychange", "blur", "focus"]) {
           window.addEventListener(t, onOcclusionChange);
           ocListeners.push(t);
         }
+        window.addEventListener("resize", onCoverGeometryChange);
+        ocListeners.push("resize");
       }
       // 视频壁纸的**提交前预热**：指针按到/停在卡片上时就把它预到元数据（见 src/video-layer.js
       // 的 warmVideoUrl）—— 点击发生在抬手，按下→抬手、以及鼠标停在卡片上的这段时间都是白捡的
@@ -6049,6 +6121,9 @@ function apply(ctx) {
       let ocWatch = 0;
       if (typeof setInterval === "function") {
         ocWatch = setInterval(() => {
+          // 代理的输入没有事件可用时（原生模态抢焦点后 focus 事件可能丢）靠这一拍补：
+          // 它自己带防抖、只在判定变化时 emit，常态零代价。
+          try { refreshCoveredHold(); } catch { /* ignore */ }
           const now = occlusionReason();
           if (now === lastOcclusion) return;
           lastOcclusion = now;
@@ -6136,6 +6211,10 @@ function apply(ctx) {
         }
         if (hiddenDebounce) { clearTimeout(hiddenDebounce); hiddenDebounce = 0; }
         hiddenHoldActive = false;
+        // 遮挡代理同理：定时器与判定位都是模块级，必须随 fiber 收干净 —— 否则禁用
+        // 期间若恰好"单屏 + 满屏 + 失焦"，重挂会带着旧态直接暂停（与 #288 同一条纪律）。
+        if (coveredHoldTimer) { try { clearTimeout(coveredHoldTimer); } catch { /* ignore */ } coveredHoldTimer = 0; }
+        coveredHoldActive = false;
         if (fontVisBound && typeof document !== "undefined" && typeof document.removeEventListener === "function") {
           document.removeEventListener("visibilitychange", onVisibilityResyncFontSet);
         }

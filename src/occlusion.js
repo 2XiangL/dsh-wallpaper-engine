@@ -29,11 +29,17 @@
 var OCCLUSION_POLL_MS = 1000;        // 与宿主心跳同频（渲染器 3s 陈旧线 ⇒ 必须严格 ≤3s）
 var OCCLUSION_BACKOFF_MS = 5000;     // 连续失败后的退避周期
 var OCCLUSION_BACKOFF_AFTER = 3;     // 连续失败多少次后开始退避
+// **宿主没有遮挡后端**（`backend:'none'`：Windows / 无 X11 会话）时的停车周期。
+// 不彻底停：hub 每 30s 重试一次适配器，X11 会话恢复后要能自己回来。1Hz→1/30Hz 把
+// "纯废的每秒一次 HTTP + postMessage"降到 ~2 次/分，而恢复上限仍是 30s（远小于
+// 渲染器 3s 陈旧线只在有数据时才有意义的口径：没有数据时本就没有遮挡可清）。
+var OCCLUSION_IDLE_MS = 30000;
 
 var occlusionTimer = 0;
 var occlusionFrame = null;
 var occlusionInflight = false;
 var occlusionFailures = 0;
+var occlusionNoBackend = 0;          // 连续多少次快照是 backend:'none'
 var occlusionOnVis = null;           // visibilitychange 监听（启动时武装）
 
 /**
@@ -66,6 +72,7 @@ function stopOcclusionPolling() {
   }
   occlusionFrame = null;
   occlusionInflight = false;
+  occlusionNoBackend = 0;   // 停车计数随会话复位（下一次建层重新从 1Hz 试起）
   // op 基线一并复位：否则换壁纸后首拍 op 与上一会话终态相同 ⇒ 不留日志，
   // QA 对账在轮换场景丢首条证据。
   occlusionLastOp = null;
@@ -135,6 +142,31 @@ function tryOcclusionFetch() {
  * own 缺失/为零 ⇒ 无法建立坐标系 ⇒ clear（宿主降级态本来就是 rects:null）。
  */
 function deliverOcclusionSnapshot(frame, snap, targetOrigin) {
+  // ── 后端为空 ⇒ 心跳停车（1Hz → OCCLUSION_IDLE_MS）────────────────────────────
+  // `backend:'none'` 是 hub 的**降级态**（无 X11 会话 / 适配器死亡 / EWMH 缺失），
+  // 在 Windows 上是常态：宿主根本产不出遮挡数据，1Hz 轮询纯属"每秒一次 HTTP +
+  // 一次 postMessage"的空转。连续 BACKOFF_AFTER 拍仍是 none 就降到 30s 一次
+  // （不是彻底停：hub 每 30s 重试一次适配器，X11 会话回来时这条 30s 心跳是唯一的
+  // 自动恢复路径）。一旦看到真的 backend 就立刻回 1Hz —— 3s 陈旧线的契约不能松。
+  if (snap && snap.backend === 'none') {
+    occlusionNoBackend += 1;
+    if (occlusionNoBackend === OCCLUSION_BACKOFF_AFTER && occlusionTimer) {
+      clearInterval(occlusionTimer);
+      occlusionTimer = setInterval(occlusionTick, OCCLUSION_IDLE_MS);
+      if (typeof liveLog === "function") {
+        liveLog("occlusion", function () {
+          return "backend=none -> heartbeat " + OCCLUSION_POLL_MS + "ms -> " + OCCLUSION_IDLE_MS
+            + "ms (no occlusion backend; waiting for hub retry)";
+        }, "info");
+      }
+    }
+  } else if (snap && occlusionNoBackend) {
+    occlusionNoBackend = 0;
+    if (occlusionTimer) {
+      clearInterval(occlusionTimer);
+      occlusionTimer = setInterval(occlusionTick, OCCLUSION_POLL_MS);
+    }
+  }
   // 不看 backend 名字：hub 契约里 backend 是开放集合（x11/sway/KDE/GNOME…），
   // own/rects 才是实质判据 —— 硬编码相等会让未来后端被当"无数据"静默清遮挡。
   const hasData = snap.own && snap.own.w > 0
