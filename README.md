@@ -46,7 +46,7 @@
       <ul>
         <li><a href="#界面预览">界面预览</a> · <a href="#主要能力">主要能力</a> · <a href="#支持哪些壁纸">支持哪些壁纸</a></li>
         <li><a href="#快速开始">快速开始</a> · <a href="#使用">使用</a> · <a href="#兼容与限制">兼容与限制</a></li>
-        <li><a href="#开发与贡献">开发与贡献</a> · <a href="#致谢">致谢</a></li>
+        <li><a href="#与上游的差异">与上游的差异</a> · <a href="#开发与贡献">开发与贡献</a> · <a href="#致谢">致谢</a></li>
         <li><a href="#赞赏">赞赏</a> · <a href="#联系方式">联系方式</a></li>
       </ul>
     </td>
@@ -128,6 +128,34 @@ node scripts/install-source.mjs --profile desktop --dsh-home "<DSH 数据目录>
 <a href="https://github.com/elysia395/dsh-wallpaper-engine/releases/download/media-v1/better-sidebar-font.png">
   <img src="https://github.com/elysia395/dsh-wallpaper-engine/releases/download/media-v1/better-sidebar-font.png" alt="侧栏玻璃与字体适配">
 </a>
+
+<h2 id="与上游的差异">与上游的差异</h2>
+
+本仓是 [上游正式主仓](https://github.com/elysia395/dsh-wallpaper-engine) 的 fork，当前工作分支
+`feat/perf-resource-optimization`。相对上游 `main`，这里的主线只有一件事：**在不改默认观感与功能的
+前提下，压低插件带来的系统开销**（CPU / GPU / 内存 / 显存 / 磁盘 I/O），并把这套判断做成可复算的
+机检与真机基准 —— 而不是靠"看着像优化"。
+
+| 方面 | 改动 |
+|---|---|
+| 省电暂停 | 回到最原始实现：只认 `document.hidden`（带防抖）与可选的失焦 / 电池档。撤掉上一版"满屏 + 失焦即视为被遮挡"的代理 —— 它在小窗悬浮于窗口之上时会误暂停，把看得见的壁纸定格 |
+| 音频 | 声音与画面**同源同步**：画面在播就出声、画面停才静音；暂停 / 恢复带短渐变，避免硬切 |
+| 玻璃 | 霜配方去掉一道近似恒等的滤镜；"雾化 = 0"做成真的不读背景；新增 `glassMotionMode=auto`（动态壁纸下退到近不透明气泡，默认关，属观感取舍） |
+| 客户端轮询 | 媒体频谱 / 遮挡 / 帧率探针按状态启停；静止时不再打网络与 DOM |
+| 宿主 IO | 配置读缓存、诊断常驻写句柄、遮挡 hub 懒启动 + 指数退避、媒体子进程空闲停机、路径 syscall 收敛；并修复内置媒体实现空闲后无法被唤醒 |
+| 引用泄漏 | 场景壁纸层强引用、GPU 帧 pin 表两处会随使用增长、且从不回收的引用 |
+| 量具 | 五维真机相位基准（主线程 / 显存 / 磁盘 I/O / 私有工作集 / 状态自证）与玻璃配方吞吐装置，都可重跑 |
+
+**证据与边界**：归因、已落地项、**刻意不做**的项与理由、验收标准见
+[`docs/perf/RESOURCE-OPTIMIZATION.md`](docs/perf/RESOURCE-OPTIMIZATION.md)；原始数字与复算命令见
+[`docs/perf/MEASUREMENTS.md`](docs/perf/MEASUREMENTS.md)。要提前说清楚的两条边界：
+
+1. "液态玻璃压着动态视频"的逐帧 backdrop 重采样是固有成本，这些改动只降低它的系数，不会消除它；
+2. 实测（临时关掉一块侧栏玻璃做对照）表明单块霜面的成本落在测量噪声内，所以**没有**走"按面积预烘焙"
+   那条路 —— 有效杠杆是减少霜面**数量**。
+
+对外契约：设置项语义、宿主路由与子包契约与上游一致；被撤除的设置键在旧配置里按未知键丢弃（不报错）。
+质量门：`npm run verify`、`npm run smoke`、`npm run verify:docs` 全绿。
 
 <h2 id="开发与贡献"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/section-develop-dark.png"><img src="assets/readme/section-develop-light.png" alt="开发与贡献" width="1440"></picture></h2>
 

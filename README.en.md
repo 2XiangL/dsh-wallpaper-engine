@@ -46,7 +46,7 @@ Bring local **Wallpaper Engine** Scene, Web and Video wallpapers into DSH, with 
       <ul>
         <li><a href="#preview">Preview</a> · <a href="#features">Features</a> · <a href="#supported-wallpapers">Supported wallpapers</a></li>
         <li><a href="#quick-start">Quick start</a> · <a href="#usage">Usage</a> · <a href="#compatibility">Compatibility</a></li>
-        <li><a href="#development">Development</a> · <a href="#special-thanks">Special Thanks</a></li>
+        <li><a href="#differences-from-upstream">Differences from upstream</a> · <a href="#development">Development</a> · <a href="#special-thanks">Special Thanks</a></li>
         <li><a href="#support">Support</a> · <a href="#community">Community</a></li>
       </ul>
     </td>
@@ -128,6 +128,36 @@ Keep the source directory in place after installation. See [upgrading](docs/UPGR
 <a href="https://github.com/elysia395/dsh-wallpaper-engine/releases/download/media-v1/better-sidebar-font.png">
   <img src="https://github.com/elysia395/dsh-wallpaper-engine/releases/download/media-v1/better-sidebar-font.png" alt="Sidebar glass and font adaptation">
 </a>
+
+<h2 id="differences-from-upstream">Differences from upstream</h2>
+
+This repository is a fork of the [upstream project](https://github.com/elysia395/dsh-wallpaper-engine);
+the current work happens on the `feat/perf-resource-optimization` branch. Against upstream `main` the
+single theme here is **cutting the system cost of the plugin (CPU / GPU / RAM / VRAM / disk I/O) without
+changing the default look or behaviour**, and turning that claim into re-runnable machine checks and
+real-machine benchmarks instead of "looks like an optimization".
+
+| Area | What changed |
+|---|---|
+| Auto-pause | Back to the original implementation: only `document.hidden` (debounced) plus optional blur / battery modes. The previous "fullscreen + unfocused ⇒ treat as covered" proxy is gone — it paused playback when a small window merely floated above the app, freezing a wallpaper that was still visible |
+| Audio | Sound now follows the picture exactly (playing ⇒ audible, paused ⇒ silent), with a short fade on pause / resume so it never cuts abruptly |
+| Glass | One near-identity filter stage removed from the frost recipe; "blur = 0" now really stops reading the backdrop; new `glassMotionMode=auto` (falls back to near-opaque bubbles while a video wallpaper plays; off by default, a looks trade-off) |
+| Client polling | Media spectrum / occlusion / frame-rate probes start and stop with state, so an idle UI does no network or DOM work |
+| Host I/O | Config read memo, resident diagnostic write handle, lazy occlusion hub with exponential backoff, media child-process idle stop, fewer path syscalls; also fixes the built-in media backend never waking up after its idle stop |
+| Leaks | Two reference leaks that grew with use and were never released: scene-layer strong references and the GPU frame pin table |
+| Instrumentation | A five-axis real-machine phase benchmark (main thread / VRAM / disk I/O / private working set / state self-verification) plus a glass-recipe throughput rig, both re-runnable |
+
+**Evidence and limits**: attribution, what landed, what was deliberately **not** done (and why), and the
+acceptance criteria live in [`docs/perf/RESOURCE-OPTIMIZATION.md`](docs/perf/RESOURCE-OPTIMIZATION.md);
+raw numbers and reproduction commands in [`docs/perf/MEASUREMENTS.md`](docs/perf/MEASUREMENTS.md).
+Two limits up front: (1) per-frame backdrop re-sampling of liquid glass over a playing video is an inherent
+cost — these changes lower its coefficient, not the cost itself; (2) an A/B with one sidebar's glass
+temporarily disabled showed that a single frosted surface sits inside measurement noise, so the
+"pre-bake by area" route was **not** taken — the effective lever is reducing the *number* of frosted surfaces.
+
+Contracts: setting semantics, host routes and subpackage contracts are unchanged from upstream; removed
+setting keys are dropped as unknown keys in old configs (no error). Quality gates: `npm run verify`,
+`npm run smoke` and `npm run verify:docs` all pass.
 
 <h2 id="development">Development</h2>
 
