@@ -18,6 +18,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { stripCssComments } from './tools/css-text.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/(?:([A-Za-z]):)/, '$1:');
 const read = (...p) => readFileSync(join(ROOT, ...p), 'utf8');
@@ -26,12 +27,13 @@ const CSS_RAW = read('packages', 'glass', 'src', 'glass-css.js');
 const GLASS = read('packages', 'glass', 'src', 'glass.js');
 const LAYER = read('packages', 'glass', 'src', 'glass-layer.js');
 
-/** 注释先剥掉：注释里的散文（"lose all contrast (实测…)"）不是声明，不能判成漂移。 */
-const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '');
-const CSS = stripComments(CSS_RAW);
+// 注释先剥掉：注释里的散文（"lose all contrast (实测…)"）不是声明，不能判成漂移。
+// 用仓库的**字符串感知**实现（test/tools/css-text.mjs）：朴素块注释正则会把 content:"/*" 这类
+// 字符串里的注释起始符当成注释，属被 docs 档明令禁止的形态。
+const CSS = stripCssComments(CSS_RAW);
 
 /** 判据 1：表达式里出现 `contrast(...)` 就算漂移（当前配方只有 blur/saturate/brightness）。 */
-const hasIdentityContrast = (cssText) => /\bcontrast\(/.test(stripComments(cssText));
+const hasIdentityContrast = (cssText) => /\bcontrast\(/.test(stripCssComments(cssText));
 
 /** 判据 2：CSS 侧的 token 集合（`[data-we-blur-zero-faces~="x"]`）。 */
 const cssTokens = (cssText) => {

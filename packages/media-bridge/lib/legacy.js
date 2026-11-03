@@ -103,8 +103,26 @@ function bandsFromPcm(samples, out) {
   return out;
 }
 
-/** 平台默认的系统音频采集方式（Linux/Windows）。返回 { args, hint } 或 null。 */
+/**
+ * 平台默认的系统音频采集方式（Linux/Windows）。返回 { args, hint } 或 null。
+ *
+ * ⚠️ 记忆化（perf 第三批）：win32 分支的 `spawnSync('ffmpeg', ['-list_devices'…])` 是
+ * **同步**子进程，超时 5s，跑在宿主事件循环上。它此前每次 `startAudio()` 都跑一次
+ * （即每次"空闲睡醒"都跑），设备没变时纯属白付。结果只依赖平台与系统设备列表，
+ * 运行期几乎不变 ⇒ 进程内缓存一份；需要重探时用 `DSH_WE_MEDIA_REDETECT=1` 起进程。
+ */
+const FFMPEG_SOURCE_CACHE = new Map();
 function detectFfmpegSource(platform) {
+  const canCache = platform === 'win32' || platform === 'linux';
+  if (canCache && process.env.DSH_WE_MEDIA_REDETECT !== '1' && FFMPEG_SOURCE_CACHE.has(platform)) {
+    return FFMPEG_SOURCE_CACHE.get(platform);
+  }
+  const result = detectFfmpegSourceUncached(platform);
+  if (canCache) FFMPEG_SOURCE_CACHE.set(platform, result);
+  return result;
+}
+
+function detectFfmpegSourceUncached(platform) {
   if (platform === 'linux') {
     let monitor = '@DEFAULT_MONITOR@'; // PipeWire / PA 的 ffmpeg pulse 后端支持该别名
     try {
@@ -466,22 +484,35 @@ export function createMediaBridge({ dataDir, cacheBaseDir = join(dataDir, 'cache
       });
   }
 
+  // ── 读路径的**懒唤醒**（perf 第三批修回归）──────────────────────────────────
+  // `sleepIdle()` 会把 started 复位成 false 并注释"下次被访问时自动拉起"，但四条读路径
+  // 此前只 touch()、没有任何一条真的再调 start()；而 backend.js 的 start() 是一次性门
+  // （`if (started) return`），fallBackTo 也只调一次 ⇒ 空闲睡过一次之后，内置实现
+  // **永久不再醒**（音频/媒体信息死在 idle，只能靠插件重载）。这里把唤醒放回读路径：
+  // 谁在读，谁负责把它叫起来（与 touch() 同一处，语义最不容易漏）。
+  function wake() {
+    if (!started && !stopped) startMedia();
+    touch();
+  }
+
+  function startMedia() {
+    if (started || stopped) return;
+    started = true;
+    touch();
+    ensureIdleTimer();
+    log('启动内置媒体实现（音频频谱 + Now Playing）' + (audio ? '' : '（音频已在设置中关闭）'), 'info');
+    // 用户关掉「系统音频反应」时不要在这里偷偷打开采集 —— 否则回落路径会重新
+    // 申请音频权限、白占一路采集，与设置里的开关矛盾。
+    if (audio) startAudio();
+    else setAudio('off', '已在设置中关闭「系统音频反应」');
+    pollNowPlaying();
+    npTimer = setInterval(pollNowPlaying, 1000);
+    // #241：宿主优雅退出不等插件 unload ⇒ 定时器必须 unref，否则事件循环永远撑住、更新回滚。
+    try { npTimer.unref?.(); } catch { /* ignore */ }
+  }
+
   return {
-    start() {
-      if (started || stopped) return;
-      started = true;
-      touch();
-      ensureIdleTimer();
-      log('启动内置媒体实现（音频频谱 + Now Playing）' + (audio ? '' : '（音频已在设置中关闭）'), 'info');
-      // 用户关掉「系统音频反应」时不要在这里偷偷打开采集 —— 否则回落路径会重新
-      // 申请音频权限、白占一路采集，与设置里的开关矛盾。
-      if (audio) startAudio();
-      else setAudio('off', '已在设置中关闭「系统音频反应」');
-      pollNowPlaying();
-      npTimer = setInterval(pollNowPlaying, 1000);
-      // #241：宿主优雅退出不等插件 unload ⇒ 定时器必须 unref，否则事件循环永远撑住、更新回滚。
-      try { npTimer.unref?.(); } catch { /* ignore */ }
-    },
+    start() { startMedia(); },
     stop() {
       stopped = true;
       if (idleTimer) { try { clearInterval(idleTimer); } catch { /* ignore */ } idleTimer = null; }
@@ -492,8 +523,9 @@ export function createMediaBridge({ dataDir, cacheBaseDir = join(dataDir, 'cache
       audioProc = null;
     },
     // 四条读路径都 touch()：谁在读，谁就是在用这个后端（空闲判定只看"有没有人读"）。
-    spectrum: () => { touch(); return spectrum; },
-    nowPlaying: () => { touch(); return np; },
+    // 前三条同时走 wake()：空闲睡过之后必须由读路径自己把采集叫醒（见 wake 的注释）。
+    spectrum: () => { wake(); return spectrum; },
+    nowPlaying: () => { wake(); return np; },
     artworkFile: () => artworkFile,
     artworkMime: () => artworkMime,
     /**

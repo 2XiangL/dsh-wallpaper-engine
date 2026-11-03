@@ -716,6 +716,7 @@ function Invoke-Phase {
   $restore = $false
   $coverAreaFrac = 0.0
   $fgAttemptOk = $null
+  $coverFocusOk = $null
   $invalid = New-Object System.Collections.Generic.List[string]
   $softWarn = New-Object System.Collections.Generic.List[string]
   switch ($Name) {
@@ -738,7 +739,9 @@ function Invoke-Phase {
         $restore = $true
       }
       [WeBench]::ShowCover(($CoverStyle -eq 'normal'), $false)
-      if ($CoverTakeFocus) { [void][WeBench]::ForceForeground([WeBench]::CoverHandle()) }
+      # 遮挡窗能不能抢到焦点决定了 Chromium 的 hidden 与 pauseOnCovered 这两条路走不走得通 ——
+      # 不记下来，"遮挡相没暂停"到底是策略失效还是装置没摆成功就分不清（本轮真踩到）。
+      if ($CoverTakeFocus) { $coverFocusOk = [WeBench]::ForceForeground([WeBench]::CoverHandle()) }
       $coverAreaFrac = 1.0
     }
     'minimized' {
@@ -756,7 +759,7 @@ function Invoke-Phase {
       $cw = [int]$wa.w
       $ch = [int][Math]::Round($wa.h * $PartialCoverFrac)
       [WeBench]::ShowCoverRect(($CoverStyle -eq 'normal'), $false, [int]$wa.x, [int]$wa.y, $cw, $ch)
-      if ($CoverTakeFocus) { [void][WeBench]::ForceForeground([WeBench]::CoverHandle()) }
+      if ($CoverTakeFocus) { $coverFocusOk = [WeBench]::ForceForeground([WeBench]::CoverHandle()) }
       $coverAreaFrac = [double]$PartialCoverFrac
     }
     'unfocused-visible' {
@@ -993,6 +996,7 @@ function Invoke-Phase {
         cover_area_frac = [math]::Round($coverAreaFrac, 2)
         cover_takes_focus = [bool]$CoverTakeFocus
         fg_forced_ok = $fgAttemptOk
+        cover_focus_ok = $coverFocusOk
         partial_frac = $PartialCoverFrac
         maximized_area_frac = $maxFrac
       }

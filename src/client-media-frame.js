@@ -101,11 +101,30 @@ function weStartDraw(canvas, video, customFit) {
 // 显示侧本来就会优先服务 GPU 帧，这里失败放开只影响一次多余探测，不该让判定
 // 因一次网络抖动而反转。
 const GPU_FRAME_PIN_TTL_MS = 30000;
+const GPU_FRAME_PIN_MAX = 64;          // 上限：超过就按时间戳清掉过期项（见 sweepGpuFramePins）
 const gpuFramePins = new Map();        // token -> { pinned, at }
 const gpuFramePinInflight = new Map(); // token -> Promise<boolean>
+/**
+ * 过期项清扫（perf 第三批）：`gpuFramePins` 的 TTL 此前只在**读**的时候判（`probe` 命中
+ * 过期会重探，但老条目留在 Map 里），结果是一个只增不减的 token→bool 表 —— 换壁纸
+ * 几百次就攒几百条。写入路径顺手清一次，代价 O(n) 且 n 有上限。
+ */
+function sweepGpuFramePins() {
+  if (gpuFramePins.size <= 8) return;   // 小表不值得扫
+  const now = Date.now();
+  for (const [token, hit] of gpuFramePins) {
+    if (!hit || now - hit.at >= GPU_FRAME_PIN_TTL_MS) gpuFramePins.delete(token);
+  }
+  // 清完仍超上限（同一时刻大量新 token）⇒ 丢掉最旧的，保证内存上界。
+  if (gpuFramePins.size > GPU_FRAME_PIN_MAX) {
+    const oldest = [...gpuFramePins].sort((a, b) => (a[1]?.at || 0) - (b[1]?.at || 0));
+    for (const [token] of oldest.slice(0, gpuFramePins.size - GPU_FRAME_PIN_MAX)) gpuFramePins.delete(token);
+  }
+}
 function probeGpuFramePin(token, force) {
   const key = String(token || "");
   if (!key) return Promise.resolve(false);
+  sweepGpuFramePins();
   const hit = gpuFramePins.get(key);
   if (!force && hit && Date.now() - hit.at < GPU_FRAME_PIN_TTL_MS) return Promise.resolve(hit.pinned);
   const flying = gpuFramePinInflight.get(key);
@@ -279,7 +298,11 @@ function pushMediaSnapshot(frame, m) {
  * 不写盘、不动场景文件。层对象在场景重建后会换新，集合里留的是旧引用 —— 旧对象被回收
  * 即自动失效，新场景会在下一次同步时重新收集（每次同步都会重跑一遍收集）。
  */
-const audioReactiveHidden = new Set();
+// ⚠️ 用 **WeakSet** 而不是 Set（perf 第三批修泄漏）：上面那段注释说"旧对象被回收即自动
+// 失效"，但 Set 持的是**强引用** —— 场景重建后旧层对象被这里钉住，永远回收不掉，
+// 换几次场景壁纸就攒几份旧场景图。恢复路径只做 `has()` 判定（遍历的是**当前**层列表），
+// 从不遍历这个集合 ⇒ WeakSet 语义完全等价，且不再阻止回收。
+const audioReactiveHidden = new WeakSet();
 function syncAudioReactiveLayers(frame, running) {
   try {
     const win = frame && frame.contentWindow;

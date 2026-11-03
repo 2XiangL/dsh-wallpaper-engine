@@ -6,17 +6,57 @@
 
 ## 采集方法
 
-- 工具：`test/tools/perf-bench.ps1`（进程树相位采样）、`test/tools/glass-perf-rig.mjs`（真 Chromium 玻璃配方对照）。
-- 口径：
-  - CPU = `TotalProcessorTime` 前后差分 ÷ 墙钟 ÷ **单核**（`cpu_core%`；>100% 表示多线程并行）。另给全核口径便于跨机器比较。
-  - 内存 = `WorkingSet64` 的**相位末值**（工作集回收是延迟发生的，均值会掩盖它）。
-  - GPU = `Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine` 的 `engtype_3D` 按 pid 精确切分、采样期均值。
-  - 每相位先 `-Warmup` 秒预热（着色器编译 / 首帧 JIT / 遮挡跟踪 2–3s 收敛窗）。
-  - 相位状态必须落成可复核字段：`main_iconic_start/end`、`fg_is_main`、`cover_style` —— 一次 `ShowWindow` 被忽略就会把整相位量成假的。
-  - 采集期间**不要并发跑其它重活**（本表第一条记录就踩过：同一次运行里我在写文件，visible 档读数被抬到 109% 单核）。
-- 原始 JSON 落在 `.test-cache/perf/`（`*.gitignore` 已排除），按 `label-timestamp.json` 存。
+- 工具：`test/tools/perf-bench.ps1`（进程树相位采样，schema `dsh-we-perf-bench/2`）、`test/tools/glass-perf-rig.mjs`（真 Chromium 玻璃配方对照）。
+- 口径（**v2 起是五维**；v1 的三维口径见下方各条的历史记录，跨版本不要直接相减）：
+  - **CPU（进程）** = `Process.TotalProcessorTime` 前后差分 ÷ 墙钟 ÷ 单核（`cpu_pct_core`）。墙钟只包住"读计数器"那一段（Stopwatch），不把采样自身的 WMI 开销算进分母 —— v1 曾把 300ms 的 `GPUEngine` 查询算进去，使 CPU% 系统性低估 1.6–2.3%。
+  - **CPU（线程）** = .NET `Process.Threads` 的 `TotalProcessorTime` 差分；**主线程 = 最早创建且与进程 `StartTime` 差 ≤250ms 的那个线程**（`idx==0` 只作旁证）。另报 `cpu_thread_residual_ms = 进程差 − Σ线程差`：残差大就是"有线程没被观测到"，不静默丢。**不要**用 WMI 的 `PerfProc_Thread`：实测单次 1.9s(raw) / 4.0s(formatted)，它枚举全系统线程。
+  - **内存** = `WorkingSetPrivate`（私有 WS）为头号口径（可归因、跨构建可比）；`WorkingSet64` 保留但标 `double_counts_shared`（本机树内共享页被重复计 ≈300MB）。
+  - **显存** = `GPUProcessMemory` 的 `TotalCommitted`（同 pid 多 luid 求和，`^pid_(\d+)_` 整数锚定）。⚠️ **进程间重叠，不能加总成"总显存"**；iGPU 上它就是系统内存。`TotalCommitted ≠ dedicated+shared`（本机 28/33 实例如此）⇒ 只报不推导。
+  - **磁盘 I/O** = `PerfRawData_PerfProc_Process` 的 `IOReadBytesPersec/IOWriteBytesPersec` —— 注意 **Raw 类里这些名字是累计字节**。它是**进程所有句柄的逻辑 I/O**：含页缓存命中、含管道/socket（Chromium 的 mojo IPC）、不含 mmap/分页。**无法**用它区分真磁盘与页缓存，只能做同机 A/B 相对量（实测 renderer 生命周期写 4.6GB 而物理盘空闲 ⇒ 那是 IPC）。
+  - **GPU 3D** = `GPUEngine` 的 **raw** `RunningTime` 差分（`engtype_3D` **与** `High Priority 3D` 都计入），按 pid 锚定、时间加权求均值。
+  - 每相位先预热（着色器编译 / 首帧 JIT / 遮挡跟踪收敛窗）；v2 是"等状态信号 + 上限"（`converge_ms` 入账），不是盲等。
+  - 相位状态落成可复核字段：`iconic_*` / `zoomed_end`（DPI 无关的最大化判据）/ `fg_is_main_*` / `fg_forced_ok` / `cover_focus_ok` / `cover_area_frac`，外加 diag JSONL 窗口里的 `play-state`（`playing=` / `hold=`）与 `onscreen`（`leaf=VIDEO|IMG`）。⚠️ `beat` 每 60s 一行、`activity` **只在"诊断详读"打开时才写** ⇒ 断言不依赖它们。
+  - 采集期间**不要并发跑其它重活**（v1 第一条记录就踩过：同一次运行里我在写文件，visible 被抬到 109% 单核）。
+- 原始 JSON 落在 `.test-cache/perf/`（`.gitignore` 已排除），按 `label-timestamp.json` 存。
 
 ## 记录
+
+### 2026-11-03 13:19 · 五维基线（`p1-before`）：本批改造**之前**的五个相位
+
+运行中的 DSH 此刻装的仍是**改造前**的玻璃包（工作区已改、profile 未换 ⇒ 这一轮是"before"档），
+壁纸 = 视频 `1080-example.mp4`、`glassMotionMode=auto`、`blur=9`、`leftSidebarGlass/sidebarGlass` 均开。
+命令：`pwsh -NoProfile -File test/tools/perf-bench.ps1 -Phases visible,covered,minimized,partial-cover,unfocused-visible -Label p1-before -Warmup 10`
+
+| 相位 | renderer 主线程% | renderer 工作线程% | renderer 私有 WS | GPU 进程 主线程% | GPU 进程 工作线程% | GPU 3D% | GPU 进程显存 | GPU 进程私有 WS | host 私有 WS |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| visible | **37.38** | 16.63 | 592.3 MB | 17.56 | 18.43 | 16.76 | 180.4 MB | 60.8 MB | 229.6 MB |
+| covered | 31.70 | 10.70 | 623.9 MB | 16.03 | 18.44 | 16.81 | 195.7 MB | 61.4 MB | 228.3 MB |
+| minimized | **0.99** | 0.53 | 324.9 MB | 0 | 0 | 0 | 171.6 MB | 59.5 MB | 169.4 MB |
+| partial-cover | 23.81 | 11.24 | 334.9 MB | 13.13 | 14.90 | 18.45 | 202.5 MB | 60.9 MB | 169.3 MB |
+| unfocused-visible | 21.82 | 12.03 | 335.5 MB | 12.69 | 14.33 | 16.96 | 203.8 MB | 60.9 MB | 157.6 MB |
+
+状态事实（同一轮 diag/窗口字段）：`minimized` = `hold=标签页隐藏(pauseOnHidden)`、playing=false；
+`partial-cover` = `hold=窗口被覆盖(pauseOnCovered)`、playing=false；`unfocused-visible` = playing=true（无 hold）；
+`covered` 这一轮**没有记到任何 play-state 转换行**（见下面的"未解释"）。
+
+五条读法：
+
+1. **renderer 的开销压在主线程上**（visible 37.4 vs 工作线程 16.6）—— 与本批静态审计的结论一致：
+   插件在这条路径上**没有任何按视频帧运行的 JS**（0 处 `timeupdate`、无每帧 DOM 写），
+   主线程那段是 Blink 的 paint/layerize/commit（玻璃面逐帧重采样 backdrop 的后果）。
+2. **暂停链路有效**：minimized 掉到 0.99 单核%、GPU 3D 归零，且私有 WS 从 592 → 325 MB。
+   即"播放态比暂停态多 ≈267 MB"，那部分是视频解码池 + 玻璃 render surface 池。
+3. **`pauseOnCovered` 在"部分遮挡"下也会触发**：它的条件是「单屏 + 本窗铺满可用区 ≥98% + 失焦 ≥1.5s」，
+   与**真实覆盖率无关** ⇒ 最大化窗口被盖住 60% 时照样暂停。这既是省电（看不见的那部分不画），
+   也是一条产品语义风险（用户以为壁纸在动，其实停着）——是否收紧留给下一批决定。
+4. **covered 与 partial-cover 的差**不能当成"遮挡成本"：两者装置不同（covered 是整屏遮挡窗、
+   partial 是 60% 遮挡窗），且 covered 这轮没记到 hold 行 ⇒ 那一档要么没触发暂停、要么暂停发生在
+   diag 窗口之外。v2 已补 `cover_focus_ok`（遮挡窗是否真抢到焦点）用来区分"策略失效"与"装置没摆成功"。
+5. **I/O 数只作相对量**：visible 的 renderer 写 167 MB/60s、GPU 进程读 166 MB/60s —— 这是视频数据
+   在 Chromium 内部的 mojo/IPC 传输，**不是磁盘**（口径见"采集方法"）。
+
+未解释/待补：`covered` 缺 hold 行；系统级 `PerfDisk` 反证尚未接入 v2（下一版）。
+
 
 ### 2026-11-03 · 改造前基线（`baseline-clean2`）
 

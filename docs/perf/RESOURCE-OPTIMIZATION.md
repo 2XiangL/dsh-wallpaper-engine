@@ -10,7 +10,12 @@
 1. **可行，但收益不来自"照搬 dynapaper 的写法"**。dynapaper 的收益主体是「不可见即零开销 + 事件驱动 + 动态排程 + 活动计数」；本插件里前三条**各有一半已经在做**，缺的是最后一环：**"看不见"这个信号在 Windows/Electron 侧根本没有被采到**。
 2. **改造前实测（单屏 / AMD 核显 / 1080p30 视频壁纸 / 玻璃默认）**：窗口被顶置不透明窗**完全盖住**时，渲染进程仍占 **63% 单核**、GPU 进程 **43% 单核**——与"可见"档几乎一样；而**最小化**时两者都掉到 ≈0。也就是说：**它不是"没有省电逻辑"，而是省电逻辑拿不到遮挡信号**（宿主的遮挡 hub 只有 X11 适配器；Chromium 的窗口遮挡跟踪在本壳不把"被覆盖"判成 `hidden`）。
 3. **本轮已落地**：遮挡代理（`pauseOnCovered`）、客户端三处轮询按状态启停、宿主三处 IO/定时器治理。全部改动都有机检判据或可复算的观测点，`verify` 100 步 / `smoke` 6 步全绿。
-4. **玻璃降级：机制已落地，但默认关**（新设置 `glassMotionMode`，取值 auto / full，默认 full；设置里一键可开、立即生效无需重启）。不默认开的原因是**归因还没坐实**：微基准在 1080p/60fps 下两套配方没有可测差异，而真机 A/B 需要重启宿主才能切玻璃行 —— 在没有对照之前动默认观感，等于拿用户的界面做实验。判据与方法见 §6.1 / §7（B3、C4）。
+4. **第三批（其后追加）**：逐线程采样把可见档拆成「主线程 37.4 / 工作线程 16.6 单核%」，
+   并证明插件在视频档下**没有按帧运行的 JS**（成本是 Blink 的合成/重绘）⇒ 只能靠
+   "少做几步 / 换低频烘焙 / 看不见时停"三条路压。本批已落地"少做几步"里**可证无观感变化**的那半：
+   摘掉 `contrast(1.01)` 恒等段、逐面「雾化=0」真关闭，并修掉三处宿主/客户端重复开销与两处泄漏；
+   换来的是**每一帧都省**（视频壁纸下每面每帧都在付）。详见 §10。
+5. **玻璃降级：机制已落地，但默认关**（新设置 `glassMotionMode`，取值 auto / full，默认 full；设置里一键可开、立即生效无需重启）。不默认开的原因是**归因还没坐实**：微基准在 1080p/60fps 下两套配方没有可测差异，而真机 A/B 需要重启宿主才能切玻璃行 —— 在没有对照之前动默认观感，等于拿用户的界面做实验。判据与方法见 §6.1 / §7（B3、C4）。
 
 ## 1. 两个项目的资源模型不是一回事
 
@@ -152,7 +157,8 @@
 | A4 | `readConfig()` 未变更时 0 次 `readFileSync`，写后立刻可见；`cacheBaseDir` 语义不变 | `verify-cache-dir`（A6 语义面） |
 | A5 | 诊断落盘 N 行只 open 1 次；轮转 / 抢先轮转 / 外部删除三种自愈 | `verify-host-diag`（B4 等） |
 | A6 | 遮挡 hub 不在装载期启动；`retryTimer` 已 unref；重试间隔递增 | `verify-occlusion-hub` D3/D4（含两条新负对照） |
-| A7 | 全链绿：`npm run verify`（100 步）/ `smoke`（6）/ `verify:docs`（6） | CI 同款命令 |
+| A7 | 全链绿：`npm run verify`（101 步）/ `smoke`（6）/ `verify:docs`（6） | CI 同款命令 |
+| A8 | 玻璃配方形状：无 `contrast(...)` 恒等段；逐面雾化 token 写侧==读侧；卸载撤属性 | `verify-glass-recipe` |
 
 ### B 类｜微基准（手动，结论入 `MEASUREMENTS.md`）
 
@@ -177,15 +183,86 @@
 
 ```powershell
 # 真机相位基准（会短暂遮挡/最小化 DSH 窗口，结束自动还原）
+# v2：五个相位 + 五维口径；新相位 partial-cover / unfocused-visible 见文件头
 pwsh -NoProfile -File test/tools/perf-bench.ps1 -Label before -Phases visible,covered,minimized -Warmup 10
+pwsh -NoProfile -File test/tools/perf-bench.ps1 -Label probe -Phases partial-cover,unfocused-visible -Warmup 10
 
 # 玻璃配方对照（真 Chromium，手动工具，不进 verify 链）
 node test/tools/glass-perf-rig.mjs --blocks 2 --check-css
 ```
 
-## 9. 下一步（按序）
 
-1. **真机 A/B 拆玻璃**（重启一次）：玻璃行停用 vs 全开，各取 `visible` 相位 3×60s，得到"玻璃占可见档成本的比例"。
-2. 若 ≥1/3：把 `glassMotionMode` 默认改成 `auto`（机制已在 §5.5，无需再改代码），并用 §7 的 B3/C4 复核；否则保持 `full`。
-3. 4K 分辨率上限转码（独立批次）。
-4. 遮挡代理扩展到"最大化 + 窗口部分可见"的判定（需要更细的几何信号，评估原生方案）。
+## 8.1 改了客户端/宿主代码之后怎么让它生效
+
+插件由宿主按 profile 里的 node_modules 加载，**行级开关只热应用"启用/停用"，不会重新取字节** ⇒
+改了 `lib/**`、`packages/*/lib/**` 之后必须：
+
+```powershell
+node .test-cache/install-batch3.mjs   # 把工作区已构建产物写进 profile（带 .we-backup-* 回滚点）
+# 然后重启 DSH（关掉窗口再打开；宿主与页面都会重新求值）
+```
+
+`glass-perf-rig.mjs` 是独立装置，不需要重启。
+
+1. **重启后补 A/B**（唯一还缺的一刀）：同一台机、同一套 v2 量具，`visible` ×3 取中位，与
+   §10.4 的 `p1-before` 对照；同时补测 `covered`（看 `cover_focus_ok`）。
+2. **P2 spike**（半天）：`glass-perf-rig` 加"真视频背景 + baked 档"，吞吐提升 <10% 就放弃；
+   通过再实现 canvas 镜像版（只对两块侧栏，输入卡不动）。
+3. **P4**（半天，含一次重启）：宿主 `powerMonitor` 能力探测 + 锁屏/挂起并入 `occlusionReason()`。
+4. **P3**（观感取舍，待拍板）：`auto-all` 扩面；默认仍 `full`。
+5. 4K 分辨率上限转码（独立批次，维持 §6.3）。
+
+## 10. 第三批（本轮）：还能往哪压，以及为什么只能这么压
+
+### 10.1 归因结论（本轮新证据，替代上一轮的猜测）
+
+1. **逐线程采样**（`perf-bench.ps1` v2）：视频壁纸 + 玻璃 auto 的 `visible` 档，renderer 主线程
+   **37.4 单核%**、工作线程 16.6；`minimized` 掉到 **0.99 / 0.53**。⇒ 成本压在主线程，
+   且随"暂停"整块消失（不是摊在解码/合成后台线程上）。
+2. **静态审计（四路独立）**：桌面壳是 Electron（UA 不含 `Edg/` ⇒ 原生 `<video>`），
+   视频档下插件**没有任何按视频帧运行的 JS**（0 处 `timeupdate`、无每帧 DOM 写、rVFC 只在
+   Edge 镜像画布与场景抓帧两条死路上）；玻璃包里 **138 处 `backdrop-filter` 里只有 17 条是真霜规则**
+   （其余是 `none` 覆盖、注释、`-webkit-` 双写）⇒ 上一轮"表达式很长"的直觉被高估了约 8 倍。
+   （上面三个数字的唯一真源 = [`MEASUREMENTS.md`](./MEASUREMENTS.md) 的 `p1-before` 记录；这里只给结论。）
+3. ⇒ 主线程那一段是 **Blink 的 paint / layerize / commit**：每个霜面每帧重采一次 backdrop 的后果。
+   因此"再压"只有三条路，别无第四条：
+   **① 同一观感下每面每帧少做几步；② 把大块静态面的 backdrop 换成低频烘焙；③ 看不见时彻底停。**
+
+### 10.2 本批已落地（都在分支上，判据随链）
+
+| 项 | 改了什么 | 为什么观感不变 | 判据 |
+|---|---|---|---|
+| P1-1 | 17 条真霜规则 + 宿主 `--dsw-mask-blur` 通道摘掉 `contrast(1.01)` | `out=(in-0.5)*1.01+0.5`：0..1 区间最大 \|Δ\| = 1.3/255，中灰为 0 | `verify-glass-recipe` + `glass-perf-rig --check-css` 的反向 tripwire |
+| P1-3/4 | 逐面「雾化 = 0」真关闭（`data-we-blur-zero-faces`） | 0 就是"这面不要霜"，与既有全局门同语义；有效值经 `glassValue` 解析（跟随档不会漏挂） | 写侧 token 集合 == 读侧 token 集合（双向）+ 卸载成对撤属性 |
+| P5-1 | `audioReactiveHidden` 改 **WeakSet** | 语义等价（只做 `has()`，遍历的是当前层列表） | 注释里"旧对象会被回收"原本是错的：Set 强引用把它钉住 |
+| P5-2 | `gpuFramePins` 加 TTL 清扫 + 上限 64 | 纯缓存 | 表大小有上界 |
+| P6-1 | **修回归**：内置媒体后端空闲睡死后由读路径 `wake()` 懒唤醒 | 恢复"下次被访问自动拉起"的原设计 | `verify-media-bridge` |
+| P6-2 | `detectFfmpegSource` 记忆化 | 设备列表运行期不变；`DSH_WE_MEDIA_REDETECT=1` 可强探 | 每次睡醒不再付 5s 同步 `spawnSync` |
+| P6-3 | diag 目录 `mkdirSync` 记忆化（外部删目录时自愈） | 纯 IO | `verify-logging` / `verify-host-diag` |
+| P6-4 | `serveBytes` 的 `existsSync + statSync` 合成一次 `statSync` | 目录语义与旧路径一致（stat 成功、流打开才失败） | `verify-json-response` |
+| 量具 | `perf-bench.ps1` 升到 schema /2（五维 + 状态断言 + 修 5 处会静默量错的口径） | —— | 见 `MEASUREMENTS.md` 的"采集方法" |
+
+### 10.3 已判定但**刻意未做**（附理由，免得下一轮重走）
+
+- **P2 把侧栏底板的 backdrop 换成"烘焙副本"**：等价性**已证**（`[data-we-surface-root]` 是
+  `z-index:-1`，宿主整个 UI 帧在其上 ⇒ 底板背景只含「壁纸 + 均匀 scrim + fx canvas」，
+  均匀 alpha 与 blur 可交换）；实现不必用 ffmpeg/第二个解码器 —— `ctx.filter='blur()'; drawImage(video)`
+  到 480×270 canvas（`drawImage` 复用已解码帧），每 200–500ms 一次，成本 ≈0.2–0.5ms/次。
+  **未做**的原因：①它要镜像 `objectFit/flip/layerPosition/layerScale/parallax/wallpaperOpacity/wallpaperBlur/fpsCap`
+  八项状态，非过渡档还要回退 live；②输入卡 `::before` **不等价**（sticky 输入卡底下会滚过消息行，
+  见 `docs/DSH-UI-INTERFACES.md`），只对两块侧栏成立；③必须先有 rig 吞吐判据（<10% 就放弃），
+  否则又是一次"改了但证不出"。
+- **P3 `glassMotionMode=auto-all`**（动壁纸时把输入卡/侧栏/工具卡一起降级）：机制已在（`data-we-wallpaper-motion`），
+  只差枚举扩面 + 新设置值。**这是观感取舍**（动壁纸时侧栏也变近不透明），默认不动，等你点头。
+- **P4 锁屏 / 挂起 / 空闲暂停**：宿主侧押 `powerMonitor`（Electron 能力探测，不可用则整条不启用）。
+  收益是"人不在时归零"，但需要一次重启才能验证。
+- **4K→目标分辨率转码 / Windows 原生窗口枚举**：维持 §6.3 / §6.4 的裁定（收益面窄，改动面大）。
+
+### 10.4 已知未解释（不要当成已解决）
+
+- `covered` 相位这一轮**没有记到任何 `play-state` 转换行**，而 `partial-cover` 记到了
+  `窗口被覆盖(pauseOnCovered)`。v2 已补 `cover_focus_ok`（遮挡窗是否真抢到焦点）来区分
+  "策略失效"与"装置没摆成功"，复测一次即可定性。
+- 本批的 **A/B 尚未完成**：量具换了、口径也换了（进程总 → 主线程/工作线程分开），
+  与上一轮 26.22 那类数字**不可相减**。正确做法是"同一套 v2 量具、同一台机、重启前后各一轮"
+  —— 代码已装进 profile（`.we-backup-* ` 可回滚），下一次重启即可补这一刀。
