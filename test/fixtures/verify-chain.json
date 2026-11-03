@@ -225,6 +225,14 @@
         {
           "kind": "guard",
           "npm": null,
+          "file": "test/verify-glass-recipe.mjs",
+          "args": [],
+          "tier": "hard",
+          "probe": false
+        },
+        {
+          "kind": "guard",
+          "npm": null,
           "file": "test/verify-package-files.mjs",
           "args": [],
           "tier": "hard",
@@ -1143,6 +1151,14 @@
           "kind": "guard",
           "npm": null,
           "file": "test/verify-extra-glass.mjs",
+          "args": [],
+          "tier": "hard",
+          "probe": false
+        },
+        {
+          "kind": "guard",
+          "npm": null,
+          "file": "test/verify-glass-recipe.mjs",
           "args": [],
           "tier": "hard",
           "probe": false

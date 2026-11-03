@@ -2458,7 +2458,7 @@ console.log('\n⑱ 宿主模糊令牌覆盖（#156①：值本身必须真的模
       && maskBlurOk('body[data-we-glass-page]{--dsw-mask-blur: blur(16px) saturate(1.8)}') === false
       && maskBlurOk('body{--dsw-mask-blur: blur(var(--we-blur, 16px))}') === false
       && maskBlurOk('body[data-we-glass-page]{color:red}') === false
-      && maskBlurOk('body[data-we-glass-page]{--dsw-mask-blur: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01)}') === true);
+      && maskBlurOk('body[data-we-glass-page]{--dsw-mask-blur: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04))}') === true);
 }
 
 console.log('\n⑲ 标记值跟走 resolver（t9-001 运行级断言：真跑 weSurfaceRefresh 的 stub DOM）');

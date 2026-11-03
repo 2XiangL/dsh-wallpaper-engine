@@ -348,6 +348,9 @@ function disposeGlassLayer() {
   document.body.removeAttribute("data-we-sidebar-fullclear");
   document.body.removeAttribute("data-we-glass-fallback"); // #95 软件渲染回退钩子随层注销
   document.body.removeAttribute("data-we-blur-zero"); // 雾化=0 的霜关闭门随层注销（与写入成对）
+  // 逐面雾化=0 的门（写入在 packages/glass/src/glass.js 的 applyGlass 末尾）。与上面那条
+  // 同批：漏撤 ⇒ 卸载后每个面的"零模糊=无霜"判定仍挂在一个已经没值的 token 列表上。
+  document.body.removeAttribute("data-we-blur-zero-faces");
   s.removeProperty("--we-content-surface-alpha");
   s.removeProperty("--we-content-surface-color");
   // ⚠️ W2–W4 新增的**按面釉层变量**同样要撤（否则卸载后残留的变量值会继续被

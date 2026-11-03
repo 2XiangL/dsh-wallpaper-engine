@@ -426,7 +426,7 @@ const CSS_GLASS = `
        宿主自己的遮罩规则就会取到插件的霜 —— 一次覆盖该通道上的**所有**宿主浮层
        （设置对话框、图片灯箱、各类 role=dialog 面板），不必逐个选择器补。
        这是宿主**自有**的模糊通道，不是去猜它的 CSS 模块哈希。 */
-    --dsw-mask-blur: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    --dsw-mask-blur: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
     /* #157 滚动条拇指并入插件取色：宿主把拇指色写成四个**静态中性色**
        （浅色 neutral-200/300、深色 neutral-700/600/550），与插件的玻璃色相无关，
        压在玻璃面板上就显得突兀。这里在 body[data-we-glass-page] 上重声明底层四个
@@ -521,8 +521,8 @@ const CSS_GLASS = `
        tint into "wet glass" — kept faint so the wallpaper stays 通透 (clear)
        instead of glaring. */
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0.02));
-    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, var(--we-glass-highlight, 0.32)),
       inset 0 -1px 0 rgba(255, 255, 255, 0.08),
@@ -592,8 +592,8 @@ const CSS_GLASS = `
      "釉面高光 + 模糊" 两件事 —— 语法与上面那族逐字相同，读同一批 --we-* 变量。 */
   body[data-we-thinking-glass][data-we-glass-page] [data-turn-trigger] {
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0.02));
-    -webkit-backdrop-filter: blur(var(--we-thinking-trigger-blur, var(--we-blur, 16px))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-thinking-trigger-blur, var(--we-blur, 16px))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-thinking-trigger-blur, var(--we-blur, 16px))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-thinking-trigger-blur, var(--we-blur, 16px))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
   }
   /* ── 输入座位（composer seat）：**不铺底板**（#156③ 于启用后撤回）─────────────
      宿主把「输入卡 + dock 行（统计行 / 模型按钮 / ContextMeter）」一起装进
@@ -642,8 +642,8 @@ const CSS_GLASS = `
     border-radius: inherit;
     pointer-events: none;
     z-index: -1;
-    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
   }
   /* ⚠️ 用户口径：**输入框整族退出思考玻璃** ——「+」按钮回到宿主原样，
      --dsw-specific-selector 令牌不再被插件改写。
@@ -672,8 +672,8 @@ const CSS_GLASS = `
       rgba(255, 255, 255, 0.14),
       rgba(255, 255, 255, 0.04) 38%,
       rgba(255, 255, 255, 0.01));
-    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.32),
       inset 0 -1px 0 rgba(255, 255, 255, 0.08),
@@ -702,8 +702,8 @@ const CSS_GLASS = `
   body[data-we-glass-page][data-we-thinking-glass] [data-chat-flow] .md-code-block,
   body[data-we-glass-page][data-we-thinking-glass] [data-vcp-rawhtml] > div > div:has(> pre > code):has(> div > button[title="复制代码"]) {
     background: var(--we-chat-glass-fill) !important;
-    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
   }
   body[data-we-glass-page][data-we-thinking-glass] [data-vcp-reasoning-body] {
     background: transparent !important;
@@ -786,8 +786,8 @@ const CSS_GLASS = `
     --dsl-code-block-background: transparent;
     background-color: var(--we-tool-glass-fill) !important;
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0.02));
-    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
   }
   body[data-we-glass-fallback][data-we-glass-page][data-we-thinking-glass] [data-chat-flow] [data-chat-flow-kind="context"] [data-context-injection-body],
   body[data-we-glass-fallback][data-we-glass-page][data-we-thinking-glass] [data-chat-flow] [data-slot="tool.call.toolview"]:has([data-sample="bash"]) [data-terminal],
@@ -806,8 +806,8 @@ const CSS_GLASS = `
   body[data-we-glass-page][data-we-thinking-glass] [data-slot="conversation.view"] [class*="_preview"]:has(> [class*="_previewPrompt"]) {
     background: var(--we-tool-glass-fill) !important;
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0.02)) !important;
-    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
   }
   body[data-we-glass-fallback][data-we-glass-page][data-we-thinking-glass] > [data-vlln-preview],
   body[data-we-glass-fallback][data-we-glass-page][data-we-thinking-glass] [data-slot="conversation.view"] [class*="_preview"]:has(> [class*="_previewPrompt"]) {
@@ -856,8 +856,8 @@ const CSS_GLASS = `
     background-color: color-mix(in srgb,
       var(--we-readability-base) calc(var(--we-readability-floor) * 100%),
       color-mix(in srgb, var(--we-surface-tint-light, #ffffff) calc(var(--we-glass-alpha, 0.15) * 0.6 * 100%), transparent) calc((1 - var(--we-readability-floor)) * 100%)) !important;
-    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01) !important;
-    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01) !important;
+    -webkit-backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) !important;
+    backdrop-filter: blur(var(--we-blur, 16px)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) !important;
   }
   body[data-ds-dark-theme][data-we-glass-page][data-we-thinking-glass] [data-chat-flow] .md-code-block > :has(> [data-code-block-banner]) {
     background-color: color-mix(in srgb,
@@ -1003,12 +1003,12 @@ const CSS_GLASS = `
     pointer-events: none;
   }
   body[data-we-glass-page][data-we-left-sidebar] [data-we-surface-plate="left-sidebar"] {
-    -webkit-backdrop-filter: blur(var(--we-left-sidebar-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-left-sidebar-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-left-sidebar-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-left-sidebar-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
   }
   body[data-we-glass-page][data-we-sidebar-glass] [data-we-surface-plate="right-sidebar"] {
-    -webkit-backdrop-filter: blur(var(--we-sidebar-blur)) saturate(var(--we-sidebar-saturate)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-sidebar-blur)) saturate(var(--we-sidebar-saturate)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-sidebar-blur)) saturate(var(--we-sidebar-saturate)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-sidebar-blur)) saturate(var(--we-sidebar-saturate)) brightness(var(--we-glass-brightness, 1.04));
   }
   /* 深色：同一张表、同一组层权重，只有玻璃色缺省与高亮mix 不同（与设置窗口深色那条同形）。 */
   body[data-ds-dark-theme][data-we-glass-page][data-we-left-sidebar] div:has(> [data-slot="sidebar"]):where([data-we-surface-runtime="left-sidebar"]) {
@@ -1192,8 +1192,8 @@ const CSS_GLASS = `
     inset: 0 0 auto;
     height: var(--dsh-windows-titlebar-height, 40px);
     pointer-events: none;
-    -webkit-backdrop-filter: blur(var(--we-titlebar-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01) !important;
-    backdrop-filter: blur(var(--we-titlebar-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01) !important;
+    -webkit-backdrop-filter: blur(var(--we-titlebar-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) !important;
+    backdrop-filter: blur(var(--we-titlebar-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) !important;
   }
   /* 深色：同一张表、同一组层权重，只有玻璃色缺省与高亮 mix 不同（与左栏深色那条同形）。
      ⚠️ 釉光必须**和浅色那条一样恒定**（单停靠点 sheen-a）：照抄左栏三段渐变就会重现
@@ -1481,8 +1481,8 @@ const CSS_GLASS = `
        see the composer note above) and brightness is pinned — so the settings
        window glass tracks the conversation-bar blur range exactly. Plus a
        specular sheen + inner edge highlight + diffuse shadow (panel rounds at 24px). */
-    -webkit-backdrop-filter: blur(var(--we-settings-window-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-settings-window-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-settings-window-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-settings-window-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
     background-image: linear-gradient(
       180deg,
       rgba(255, 255, 255, 0.1) 0%,
@@ -1586,8 +1586,8 @@ const CSS_GLASS = `
      模糊半径读「浮层玻璃」这条子项的私有量 --we-floaters-blur（glass.js 的浮层接线无条件写出，
      取不到时退回全局模糊），与 .we-update-notice / .we-repo-panel 同档。 */
   body[data-we-glass-floaters] [data-install-registry] {
-    -webkit-backdrop-filter: blur(var(--we-floaters-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
-    backdrop-filter: blur(var(--we-floaters-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+    -webkit-backdrop-filter: blur(var(--we-floaters-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
+    backdrop-filter: blur(var(--we-floaters-blur)) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04));
   }
   /* 无模糊内核：同一条「近不透明 / 摘霜」政策在这里也要收口，否则浮层是半透明无霜，
      文字直接压在壁纸上。 */
@@ -1803,6 +1803,28 @@ const CSS_GLASS = `
   body[data-ds-dark-theme][data-we-wallpaper][data-we-sidebar-fullclear][data-we-left-sidebar] div:has(> [data-slot="sidebar"]) {
     background-color: transparent !important;
     background-image: none !important;
+  }
+
+  /* ── 逐面「雾化 = 0」：属性 token 列表由 packages/glass/src/glass.js 的 applyGlass 写出 ──
+     上面那条只关**读全局 --we-blur** 的载体。侧栏 / 标题栏 / 设置窗 / 浮层 / 思考触发条 /
+     胶囊各读自己的模糊键（sidebarBlur / titlebarBlur / …），把其中一面调到 0 时表达式仍是
+     blur(0px) saturate(…) brightness(…) ⇒ Chromium 照样读一遍 backdrop 并建 render surface。
+     有效值在 JS 侧经 glassValue 统一解析（跟随档 = 全局键），这里只做"零就置 none"。
+     为什么用 token 列表而不是七个布尔属性：一次 applyGlass 只写一个属性，摘挂不会漏面；
+     选择器读 ~= 逐 token 命中，与既有 data-we-* 门的形态一致。 */
+  body[data-we-blur-zero-faces~="settings-window"] [role="dialog"]:has([data-slot="settings.section"])::before,
+  body[data-we-blur-zero-faces~="floaters"] [data-install-registry],
+  body[data-we-blur-zero-faces~="titlebar"] [data-we-titlebar-anchor]::after,
+  body[data-we-blur-zero-faces~="left-sidebar"] [data-we-surface-plate="left-sidebar"],
+  body[data-we-blur-zero-faces~="right-sidebar"] [data-we-surface-plate="right-sidebar"],
+  body[data-we-blur-zero-faces~="thinking-trigger"] [data-turn-trigger],
+  body[data-we-blur-zero-faces~="capsule"] [data-chat-flow] :not(pre) > code,
+  body[data-we-blur-zero-faces~="capsule"] [data-vcp-rawhtml] :not(pre) > code,
+  body[data-we-blur-zero-faces~="capsule"] [data-dsh-navbar] > button[data-vlln-load-older],
+  body[data-we-blur-zero-faces~="capsule"] [data-slot="conversation.view"] button[class*="_toBottom"],
+  body[data-we-blur-zero-faces~="capsule"] [data-slot="sidebar"] :not([class*="_collapsed"]) > button[class*="_newSession"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 
 `;

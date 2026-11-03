@@ -16,7 +16,7 @@
  *
  * | id | backdrop-filter | 底色 | 对应实现 |
  * |---|---|---|---|
- * | `full`  | `blur(16px) saturate(1.8) brightness(1.04) contrast(1.01)` | 22% 白釉 | **现状**（`packages/glass/src/glass-css.js` 的气泡/输入卡载体） |
+ * | `full`  | `blur(16px) saturate(1.8) brightness(1.04)` | 22% 白釉 | **现状**（`packages/glass/src/glass-css.js` 的气泡/输入卡载体） |
  * | `light` | `none` | 92% 近不透明 | 改造后「动壁纸降级」（Phase 3 配方） |
  * | `off`   | `none` | 100% 不透明 | 玻璃整行停用（成本下界） |
  *
@@ -59,7 +59,7 @@ const N_MIN = 60;                    // 每块最少帧数
 
 // ── 三档配方 ────────────────────────────────────────────────────────────────
 const RECIPES = {
-  full: { backdrop: 'blur(16px) saturate(1.8) brightness(1.04) contrast(1.01)', tint: 'rgba(255,255,255,0.22)' },
+  full: { backdrop: 'blur(16px) saturate(1.8) brightness(1.04)', tint: 'rgba(255,255,255,0.22)' },
   light: { backdrop: 'none', tint: 'rgba(24,28,34,0.92)' },
   off: { backdrop: 'none', tint: 'rgb(24,28,34)' },
 };
@@ -83,14 +83,22 @@ if (CHECK_CSS) {
     process.exit(2);
   }
   const css = readFileSync(cssPath, 'utf8');
-  const want = ['saturate(var(--we-saturate, 1.8))', 'brightness(var(--we-glass-brightness, 1.04))', 'contrast(1.01)'];
+  const want = ['saturate(var(--we-saturate, 1.8))', 'brightness(var(--we-glass-brightness, 1.04))'];
   const missing = want.filter((w) => !css.includes(w));
   if (missing.length) {
     console.error('[check-css] 载体表达式漂移：glass-css.js 里找不到 ' + missing.join(' / ')
       + '\n  请先把 RECIPES.full 改成 CSS 现行表达式再跑装置。');
     process.exit(2);
   }
-  console.error('[check-css] 粗对齐通过（saturate/brightness/contrast 三项仍在）。');
+  // 反向 tripwire：第三批把 `contrast(1.01)` 从所有载体上摘掉了（数学上 ≤1.3/255 的近似恒等
+  // 段，少一段全区域颜色矩阵）。若有人把它加回来而没同步 RECIPES.full，这里必须红 —— 否则
+  // 装置量的是"比真机少一段"的配方，给出偏乐观的吞吐。
+  if (/\bcontrast\(\s*1\.01\s*\)/.test(css)) {
+    console.error('[check-css] glass-css.js 里又出现了 contrast(1.01)：载体配方已变，'
+      + '请同步 RECIPES.full 与本判据后再跑装置。');
+    process.exit(2);
+  }
+  console.error('[check-css] 粗对齐通过（saturate/brightness 两项仍在，contrast 段已摘除）。');
 }
 
 const BROWSERS = [

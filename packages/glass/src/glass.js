@@ -317,6 +317,35 @@ function applyGlass(selection, s) {
   const contentColor = glassValue("sidebarContent", "color", selection.sidebarContentColor, "");
   if (contentColor) s.setProperty("--we-content-surface-color", contentColor);
   else s.removeProperty("--we-content-surface-color");
+
+  // ── 逐面「雾化 = 0」的真关闭（第三批 perf）──────────────────────────────────
+  // 全局 `data-we-blur-zero`（glass-layer.js）只覆盖**读 `--we-blur`** 的那一族；本函数写出的
+  // 六个按面变量各读自己的键，用户把某一面调到 0 时 CSS 里仍留着
+  // `blur(0px) saturate(…) brightness(…)` —— 语法上零模糊，但 Chromium 照样为该面读一遍
+  // backdrop 并建 render surface（glass-css.js 那条注释的同一机制）。这里把「有效值为 0」
+  // 的面写成 token 列表属性，样式表逐面置 `none`。
+  //
+  // ⚠️ 有效值必须经**同一个** `glassValue` 解析器取：跟随档（inherit）时本面的有效模糊就是
+  //    全局 `blur`，直接读自己的键会在"跟随 + 全局 0"时漏挂门（侧栏 0 却不关霜）。
+  // ⚠️ 与全局门**同语义**：0 就是"这面不要霜"，`saturate/brightness` 一并摘掉（与
+  //    data-we-blur-zero 的既有取舍一致，不是新发明的观感）。
+  const zeroFaces = [];
+  const faceBlurZero = (token, surface, ownValue, fallbackValue) => {
+    const v = Number(glassValue(surface, "blur", ownValue, fallbackValue));
+    if (Number.isFinite(v) && v <= 0) zeroFaces.push(token);
+  };
+  faceBlurZero("settings-window", "settingsWindow", selection.settingsWindowBlur, selection.blur);
+  faceBlurZero("thinking-trigger", "thinkingTrigger", selection.thinkingTriggerBlur, selection.blur);
+  faceBlurZero("left-sidebar", "leftSidebar", selection.leftSidebarBlur, selection.blur);
+  faceBlurZero("titlebar", "titlebar", selection.titlebarBlur, selection.blur);
+  faceBlurZero("right-sidebar", "sidebar", selection.sidebarBlur, selection.blur);
+  faceBlurZero("floaters", "floaters", selection.floatersBlur, selection.blur);
+  // 胶囊那一档没有「独立配置/跟随」二态（glass-layer.js 直接从 capsuleBlur 写
+  // `--we-inline-code-blur`），所以按裸值判。
+  const capsuleBlurNum = Number(selection.capsuleBlur);
+  if (Number.isFinite(capsuleBlurNum) && capsuleBlurNum <= 0) zeroFaces.push("capsule");
+  if (zeroFaces.length) document.body.setAttribute("data-we-blur-zero-faces", zeroFaces.join(" "));
+  else document.body.removeAttribute("data-we-blur-zero-faces");
 }
 
 export { applyGlass, toRgbTriple };

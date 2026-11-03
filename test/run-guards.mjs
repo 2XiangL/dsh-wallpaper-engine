@@ -139,6 +139,10 @@ const VERIFY_STEPS = [
   step('test/verify-glass-runtime.mjs'),
   step('test/verify-glass-runtime-browser.mjs'),
   step('test/verify-extra-glass.mjs'),
+  // 玻璃**配方形状**（第三批 perf）：霜表达式里不许再有 `contrast(...)` 恒等段；
+  // 「逐面雾化=0」的写入端 token 集合必须与样式表消费端双向相等；卸载路径必须撤属性。
+  // 归硬档：抄错一个函数就是观感回归，漏一个 token 就是"那一面白付 backdrop 读取"。
+  step('test/verify-glass-recipe.mjs'),
   step('test/verify-package-files.mjs'),
   step('test/verify-package-publish.mjs'),
   step('test/verify-deployment.mjs'),
