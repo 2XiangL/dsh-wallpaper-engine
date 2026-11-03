@@ -69,7 +69,6 @@ const WE_I18N_EN_CORE = {
   "保存失败：{error}": "Save failed: {error}",
   "标签页隐藏(pauseOnHidden)": "Tab hidden (pauseOnHidden)",
   "窗口失焦(pauseOnBlur)": "Window unfocused (pauseOnBlur)",
-  "窗口被覆盖(pauseOnCovered)": "Window covered (pauseOnCovered)",
   "窗口被完全遮挡(pauseOnOcclusion)": "Window fully occluded (pauseOnOcclusion)",
   "电池供电(pauseOnBattery)": "On battery (pauseOnBattery)",
   "用户暂停": "Paused by user",

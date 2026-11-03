@@ -164,7 +164,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -321,7 +320,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -496,7 +494,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": "__null__"
@@ -672,7 +669,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": "__null__"
@@ -848,7 +844,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": "__null__"
@@ -1016,7 +1011,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -1173,7 +1167,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -1397,7 +1390,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -1554,7 +1546,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -1823,7 +1814,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -1980,7 +1970,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -2148,7 +2137,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -2305,7 +2293,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -2487,7 +2474,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -2644,7 +2630,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -2826,7 +2811,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -2983,7 +2967,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -3152,7 +3135,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -3309,7 +3291,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -3483,7 +3464,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -3640,7 +3620,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -3811,7 +3790,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -3968,7 +3946,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -4146,7 +4123,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -4303,7 +4279,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -4546,7 +4521,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -4728,7 +4702,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -4895,7 +4868,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -5052,7 +5024,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -5219,7 +5190,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -5376,7 +5346,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     },
@@ -5544,7 +5513,6 @@
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
         "sceneAutoQuality": true,
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       },
       "host": {
@@ -5701,7 +5669,6 @@
         "uiColorDeepDiving": "",
         "extraGlassSelectors": "",
         "glassSurfacePolicy": {},
-        "pauseOnCovered": true,
         "glassMotionMode": "full"
       }
     }

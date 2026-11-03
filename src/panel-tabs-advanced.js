@@ -84,7 +84,7 @@
   }
 
   function renderAdvancedPowerSection(ctx) {
-    const { onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, onPauseOnCovered, sel } = ctx;
+    const { onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, sel } = ctx;
     return React.createElement(React.Fragment, null,
     // ── 省电：遮挡暂停（借鉴 Wallpaper Engine 的「被遮挡时暂停」）──
     React.createElement("div", { className: "we-picker__section" },
@@ -95,9 +95,9 @@
         }, weT("省电")),
       ),
       switchRow(weT("最小化/切页时暂停"), sel.pauseOnHidden, onPauseOnHidden, { key: "pause-hidden" }),
-      // 遮挡代理：单显示器 + 本窗满屏 + 失焦 ≥1.5s ⇒ 判"被其它应用盖住"（多显示器不启用）。
-      // 它是 Web 侧唯一能自证的"不可见"，代价是只对满屏窗口生效，故单独一项、默认开。
-      switchRow(weT("被其它应用盖住时暂停"), sel.pauseOnCovered, onPauseOnCovered, { key: "pause-covered" }),
+      // 「被其它应用盖住时暂停」已撤除（2026-11-03）：那条代理用"满屏 + 失焦"近似"被覆盖"，
+      // 真机上叠一个小窗（任务管理器）就会误判 ⇒ 看得见的壁纸被定格。整页被真正盖住时
+      // Chromium 自己会把页面判成 hidden（走上面那一条），不需要猜。
       // 失焦档按适配目标显隐：桌面壳失焦时壁纸多半仍整块可见，暂停会定格
       // **可见**画面 ⇒ 本目标下不提供；值不删，切到浏览器目标即重新生效。
       adapterCaps().blurPause
