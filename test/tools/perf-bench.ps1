@@ -969,6 +969,9 @@ function Invoke-Phase {
     if ($hostBefore -and $hostAfter -and $hostBefore.settings_sha256 -and $hostAfter.settings_sha256 -and $hostBefore.settings_sha256 -ne $hostAfter.settings_sha256) {
       $invalid.Add('settings_changed_mid_phase')
     }
+    # visible 相位必须确认"壁纸真的在播"：被别的窗口盖住时 Chromium 会判 hidden ⇒
+    # pauseOnHidden 把播放停掉 ⇒ 量出来的是"暂停态"（实测踩过：整批读数掉到 0.18 单核%）。
+    if ($Name -eq 'visible' -and $dw.last_playing -eq $false) { $invalid.Add('playback_not_running') }
     if ($samples.Count -lt 3) { $invalid.Add('too_few_samples') }
     $avgCost = if ($sampleCosts.Count) { ($sampleCosts | Measure-Object -Average).Average } else { 0 }
     if ($avgCost -gt ($Interval * 0.5)) { $invalid.Add('sample_cost_over_budget') }
