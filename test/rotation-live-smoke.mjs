@@ -277,6 +277,9 @@ setTimeout(async () => {
     const diagBefore = diagPosts.length;
     focusOn = false;                       // 焦点丢了，但**不派发事件**（原生模态的真实形态）
     tick();
+    // 暂停带 0.32s 渐弱（可见性隐藏时浏览器还会节流定时器）⇒ 真实路径靠硬兜底收尾。
+    // 挂载台的假定时器不会自己走、Date.now 也不前进，所以显式触发那拍兜底。
+    timers.filter((t) => !t.cleared && t.ms === 1200).forEach(fire);
     check('焦点丢了且事件没送达 ⇒ 复核把壁纸停下（pauseOnBlur 仍然生效）',
       live.__paused === true, 'paused=' + live.__paused);
     check('复核翻转了判定就**留痕**（事后能看出"事件丢了、复核补上"）',

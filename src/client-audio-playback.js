@@ -28,6 +28,9 @@
  */
 function weApplyAudio(video) {
   if (!video) return;
+  // 显式设定（换源/用户改音量/恢复）优先于任何进行中的渐变：先撤渐变再写值，
+  // 否则渐变的下一次 tick 会把刚写进去的音量又拉回自己的曲线上。
+  cancelAudioFade(video);
   const v = isAudioGated(video) ? 0 : weAudioVolume();
   try {
     video.volume = v;
@@ -65,6 +68,67 @@ function applyAudioToVisibleNow() {
       if (setLiveVolumeNow(live, vol)) liveApplied.volume = vol;
     }
   } catch { /* 音频刷新失败不影响播放判定 */ }
+}
+
+// ── 音量渐变（暂停时渐弱、恢复时渐入）─────────────────────────────────────
+// 为什么要自己写：<video> 没有"淡出"API。把媒体接进 Web Audio 用 GainNode 虽然能做出
+// 采样级精确的渐变，但 createMediaElementSource 只能对同一元素调一次、接错一步就是整条
+// 静音（且 AudioContext 可能因为自动播放策略处于 suspended）—— 为 0.3s 的渐变不值这个风险。
+//
+// 用定时器写就必须认一件事：**页面隐藏时 Chromium 会节流定时器**（后台页 ≥1s 对齐），
+// 而"暂停"恰恰多发生在隐藏时 ⇒ 渐变会被拉长。所以每个渐变都带一道**硬兜底**：
+// AUDIO_FADE_GUARD_MS 到点直接收尾（置 0 + 回调），保证"不会因为节流而不停"。
+const AUDIO_FADE_MS = 320;
+const AUDIO_FADE_STEP_MS = 24;
+const AUDIO_FADE_GUARD_MS = 1200;
+const audioFades = new Map(); // el -> { timer, guard }
+/** 撤掉某个元素上正在进行的渐变（返回是否真的撤掉了）。 */
+function cancelAudioFade(el) {
+  const f = el ? audioFades.get(el) : null;
+  if (!f) return false;
+  audioFades.delete(el);
+  try { clearTimeout(f.timer); } catch { /* ignore */ }
+  try { clearTimeout(f.guard); } catch { /* ignore */ }
+  return true;
+}
+/** 把元素音量线性渐变到 target；到达后回调 done（被取消则不回调）。 */
+function fadeAudioTo(el, target, done) {
+  if (!el) return;
+  cancelAudioFade(el);
+  const from = Number(el.volume) || 0;
+  const to = Math.max(0, Math.min(1, Number(target) || 0));
+  const finish = () => {
+    try { el.volume = to; el.muted = to <= 0.001; } catch { /* ignore */ }
+    if (typeof done === "function") { try { done(); } catch { /* ignore */ } }
+  };
+  if (Math.abs(from - to) < 0.01) { finish(); return; }
+  const t0 = Date.now();
+  const entry = { timer: 0, guard: 0, to };
+  audioFades.set(el, entry);
+  const step = () => {
+    if (audioFades.get(el) !== entry) return;   // 已被取消/被新的渐变取代
+    const k = Math.min(1, (Date.now() - t0) / AUDIO_FADE_MS);
+    const v = from + (to - from) * k;
+    try { el.volume = v; el.muted = v <= 0.001; } catch { /* ignore */ }
+    if (k >= 1) { audioFades.delete(el); finish(); return; }
+    entry.timer = setTimeout(step, AUDIO_FADE_STEP_MS);
+  };
+  entry.guard = setTimeout(() => {
+    if (audioFades.get(el) !== entry) return;
+    audioFades.delete(el);
+    finish();
+  }, AUDIO_FADE_GUARD_MS);
+  step();
+}
+/** 渐弱到 0 再暂停（音量本来就≈0 就直接暂停，不起定时器）。 */
+function fadeOutAndPause(el) {
+  if (!el) return;
+  if ((Number(el.volume) || 0) <= 0.01) { try { el.pause(); } catch { /* ignore */ } return; }
+  // 已经在渐弱（目标同为 0）就不要再发起：`applyVideoPlayback` 每次 emit 都会被调，
+  // 反复重启动会把 320ms 的窗口无限重置 ⇒ 渐弱永远到不了终点、也就永远不 pause。
+  const running = audioFades.get(el);
+  if (running && running.to === 0) return;
+  fadeAudioTo(el, 0, () => { try { el.pause(); } catch { /* ignore */ } });
 }
 
 // ── 轮换音频闸：BGM 等上一张完全退场后再起播 ─────────────────────────────
@@ -197,21 +261,24 @@ function syncSceneAudio(selLike) {
 function applyVideoPlayback(video) {
   if (!video) return;
   watchVideoState(video);
-  weApplyAudio(video);
   if (!isEffectivelyPlaying()) {
-    try { video.pause(); } catch { /* ignore */ }
+    // 暂停 = 先渐弱再 pause()（0.32s）。声音与画面仍然同步：两者一起走，只是收尾变软。
+    fadeOutAndPause(video);
     syncVideoState(video);
     return;
   }
-  if (!video.paused && !video.ended && !video.error) { syncVideoState(video); return; }
-  if (playRefusalBlocks(video)) { syncVideoState(video); return; } // 等用户显式重试
+  if (!video.paused && !video.ended && !video.error) { weApplyAudio(video); syncVideoState(video); return; }
+  if (playRefusalBlocks(video)) { weApplyAudio(video); syncVideoState(video); return; } // 等用户显式重试
+  // 起播前先压到 0：等 play() 成功再按目标音量渐入，避免"从静音啪一下到满音量"。
+  const target = isAudioGated(video) ? 0 : weAudioVolume();
+  if (target > 0) { try { video.volume = 0; video.muted = true; } catch { /* ignore */ } }
   let p;
   try { p = video.play(); } catch { p = null; }
-  if (!p || typeof p.then !== "function") { syncVideoState(video); return; }
+  if (!p || typeof p.then !== "function") { weApplyAudio(video); syncVideoState(video); return; }
   p.then(
     () => {
       if (video.dataset) delete video.dataset.wePlayRefused;
-      weApplyAudio(video);
+      fadeAudioTo(video, target);
       syncVideoState(video);
     },
     (err) => {

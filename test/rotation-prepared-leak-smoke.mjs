@@ -1920,6 +1920,9 @@ await runScenario('R4. 失焦 + pauseOnBlur=true ⇒ 暂停；夺回焦点 ⇒ �
     !!vid() && vid().__paused === false, 'paused=' + (vid() && vid().__paused));
   t.setFocus(false);
   t.fireWin('blur');
+  // 暂停现在是"渐弱 0.32s 后再 pause()"：挂载台的假定时器不会自己走、Date.now 也不前进，
+  // 所以显式触发**硬兜底**那一拍（1200ms）—— 那正是页面隐藏被节流时的真实路径。
+  t.timers.filter((x) => !x.cleared && x.ms === 1200).forEach(t.fire);
   check('失焦 + pauseOnBlur=true ⇒ 媒体被暂停（省电档真的生效）',
     !!vid() && vid().__paused === true, 'paused=' + (vid() && vid().__paused));
   t.setFocus(true);

@@ -259,7 +259,7 @@ node .test-cache/install-batch3.mjs   # 把工作区已构建产物写进 profil
 | P6-3 | diag 目录 `mkdirSync` 记忆化（外部删目录时自愈） | 纯 IO | `verify-logging` / `verify-host-diag` |
 | P6-4 | `serveBytes` 的 `existsSync + statSync` 合成一次 `statSync` | 目录语义与旧路径一致（stat 成功、流打开才失败） | `verify-json-response` |
 | 量具 | `perf-bench.ps1` 升到 schema /2（五维 + 状态断言 + 修 5 处会静默量错的口径） | —— | 见 `MEASUREMENTS.md` 的"采集方法" |
-| 修订 | **声音与画面同源同步**：撤掉"失焦即静音"，音量只由「用户音量 × 总开关 × 轮换音频闸」决定；同时把**视频壁纸**的隐藏防抖 1200ms → **250ms** | 视频 pause 是廉价的（1.2s 那条防抖本来是给实时渲染页拆页冷重载用的）⇒ 画面与声音一起更早停，而不是让声音背着画面先停 | `verify-audio-sync`（11 条）/ `verify-occlusion-debounce`（分档 + NC3b） |
+| 修订 | **声音与画面同源同步**：撤掉"失焦即静音"，音量只由「用户音量 × 总开关 × 轮换音频闸」决定；**视频壁纸**隐藏防抖 1200ms → **250ms**；停/起两端加**音量渐变**（渐弱 320ms 后再 `pause()`、起播从 0 渐入，带 1.2s 硬兜底防"后台节流导致永不停"） | 硬切会有"啪"的一声；渐变不改变"声音跟画面一起走"的语义，只是把收尾变软 | `verify-audio-sync`（14 条：同步纪律 + 渐变序列 + 取消 + 兜底 + 反回归）/ `verify-occlusion-debounce`（分档 + NC3b） |
 | 撤除 | **遮挡代理 `pauseOnCovered` 整条删除**（代码 / 设置 / 界面行 / 词表 / 预设 / 判据） | 回到"最原始实现"：只认 `document.hidden` + 可选失焦/电池 | 用户真机反馈：全屏时叠一个小窗就误暂停 ⇒ §5.1 末 |
 
 ### 10.3 已判定但**刻意未做**（附理由，免得下一轮重走）
