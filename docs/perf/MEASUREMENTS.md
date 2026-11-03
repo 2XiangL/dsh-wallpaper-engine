@@ -60,8 +60,9 @@ AttachThreadInput"（非前台进程的 `SetForegroundWindow` 会被静默拒绝
 从 2s 到 >20s 不等、甚至不报（与之前"本壳不把覆盖判成 hidden"的结论是同一件事的不同侧面）。
 所以「另一窗口最大化后音乐还响几秒」不能靠调防抖解决。
 
-⇒ 结论（已落地）：把**声音**与**画面**分开 —— 声音跟 `blur`（瞬时、确定）走，画面仍走
-`document.hidden` + 1.2s 防抖。见 RESOURCE-OPTIMIZATION §10.2 的 `muteOnBlur` 行。
+⇒ 结论（已落地，两次迭代）：先试了"声音跟 `blur` 走"（失焦即静音）—— 真机反馈更糟：小窗悬浮时
+视频还在播、声音却被掐掉。最终定稿 = **同源同步**（音量只由用户音量 × 总开关 × 轮换音频闸决定）
++ **视频壁纸隐藏防抖 1200ms → 250ms**：画面与声音一起更早停。见 RESOURCE-OPTIMIZATION §10.2。
 
 > 口径提醒：上表的 `playing=false` 是**diag 行**出现的时刻，不等于音量真正停止的时刻
 > （日志由 `occlusion-recheck` 与 focus/blur 监听写，前者最多晚 3s）⇒ 这张表只用于比较

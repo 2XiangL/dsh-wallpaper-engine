@@ -46,8 +46,17 @@ function violations(src) {
   if (!/document\.addEventListener\(\s*["']visibilitychange["']\s*,\s*applyHiddenHold\s*\)/.test(src)) {
     out.push('apply 没有挂 visibilitychange → applyHiddenHold');
   }
-  if (!/setTimeout\([\s\S]{0,240}?HIDDEN_PAUSE_DEBOUNCE_MS\s*\)/.test(src)) {
-    out.push('防抖计时没有使用 HIDDEN_PAUSE_DEBOUNCE_MS');
+  // 分档防抖（2026-11-03）：视频壁纸 pause 廉价 ⇒ 更短窗口；实时/网页档仍走通用档（防拆页冷重载）。
+  const videoMs = /HIDDEN_PAUSE_DEBOUNCE_VIDEO_MS\s*=\s*(\d+)\s*;/.exec(src);
+  if (!videoMs) out.push('缺 HIDDEN_PAUSE_DEBOUNCE_VIDEO_MS 常量');
+  else {
+    const v = Number(videoMs[1]);
+    if (!(v >= 100 && v <= 600)) out.push('HIDDEN_PAUSE_DEBOUNCE_VIDEO_MS=' + v + ' 不在 100–600ms 窗口');
+    if (threshold && !(v < Number(threshold[1]))) out.push('视频档防抖必须短于通用档');
+  }
+  if (!/function\s+hiddenPauseDebounceMs\s*\(\s*\)/.test(src)) out.push('缺 hiddenPauseDebounceMs()');
+  if (!/setTimeout\([\s\S]{0,240}?hiddenPauseDebounceMs\(\s*\)\s*\)/.test(src)) {
+    out.push('防抖计时没有使用 hiddenPauseDebounceMs()');
   }
   // cleanup 侧移除 + 复位（模块级状态必须收）。
   if (!/document\.removeEventListener\(\s*["']visibilitychange["']\s*,\s*applyHiddenHold\s*\)/.test(src)) {
@@ -75,9 +84,12 @@ check('2. 覆盖面：源码里确有 applyHiddenHold 与 hiddenHoldActive 的�
   const noReset = code.replace(/\n\s*hiddenHoldActive\s*=\s*false\s*;/, '\n/* reset removed */');
   check('NC2 删掉 cleanup 的 hiddenHoldActive 复位 ⇒ 判红',
     noReset !== code && violations(noReset).some((v) => /复位/.test(v)));
-  const zeroWindow = code.replace('}, HIDDEN_PAUSE_DEBOUNCE_MS);', '}, 0);');
-  check('NC3 把防抖窗口改成 0 ⇒ 判红',
-    zeroWindow !== code && violations(zeroWindow).some((v) => /HIDDEN_PAUSE_DEBOUNCE_MS|窗口/.test(v)));
+  const zeroWindow = code.replace('}, hiddenPauseDebounceMs());', '}, 0);');
+  check('NC3 把分档计时换回写死的 0 ⇒ 判红',
+    zeroWindow !== code && violations(zeroWindow).some((v) => /hiddenPauseDebounceMs|窗口|防抖/.test(v)));
+  const sameWindow = code.replace(/HIDDEN_PAUSE_DEBOUNCE_VIDEO_MS\s*=\s*(\d+)\s*;/, (m, n) => m.replace(n, '1200'));
+  check('NC3b 把视频档窗口调回与通用档相同 ⇒ 判红（否则"按类型提速"退化成空话）',
+    sameWindow !== code && violations(sameWindow).some((v) => /视频档防抖必须短于通用档/.test(v)));
   const noUnbind = code.replace('document.removeEventListener("visibilitychange", applyHiddenHold);', '');
   check('NC4 删掉卸载时的监听移除 ⇒ 判红',
     noUnbind !== code && violations(noUnbind).some((v) => /visibilitychange|移除/.test(v)));

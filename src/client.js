@@ -1844,6 +1844,20 @@ let weBattery = null; // BatteryManager from navigator.getBattery (if available)
  * 判定源仍只有一个：`occlusionReason()` 读这个布尔，`occlusionActive()` 由它派生。
  */
 const HIDDEN_PAUSE_DEBOUNCE_MS = 1200;
+/**
+ * 视频壁纸的隐藏防抖可以短得多。
+ *
+ * 1.2s 那条防的是**实时渲染页**"暂停 → 拆页 → 重建 → 重解析 scene 包"的冷重载（实测黑屏 ~2s）；
+ * 而视频壁纸的暂停只是 media.pause()、恢复只是 play()，没有拆页代价。真机反馈"另一窗口最大化后
+ * 声音还响几秒"里，约 1.1s 就是这条防抖白等的（剩下的是 Chromium 的遮挡信号本身）。
+ * 声音已经与画面同源同步（见 client-audio-playback.js），缩短它等于让画面和声音一起更早停。
+ */
+const HIDDEN_PAUSE_DEBOUNCE_VIDEO_MS = 250;
+/** 当前壁纸类型对应的隐藏防抖（视频档 250ms；实时/网页档保持 1200ms 防冷重载）。 */
+function hiddenPauseDebounceMs() {
+  try { return selection && selection.type === "video" ? HIDDEN_PAUSE_DEBOUNCE_VIDEO_MS : HIDDEN_PAUSE_DEBOUNCE_MS; }
+  catch { return HIDDEN_PAUSE_DEBOUNCE_MS; }
+}
 let hiddenHoldActive = false;
 /*
  * ── 已撤除：遮挡代理（原 pauseOnCovered，2026-11-03 撤回）────────────────────────
@@ -2703,12 +2717,6 @@ function onFlip(e) { setSetting("flip", e.target.checked); emit(); }
 function onAdapterTarget(e) { setSetting("adapterTarget", e.target.value); emit(); }
 function onPauseOnHidden(e) { setSetting("pauseOnHidden", e.target.checked); emit(); }
 function onPauseOnBlur(e) { setSetting("pauseOnBlur", e.target.checked); emit(); }
-function onMuteOnBlur(e) {
-  setSetting("muteOnBlur", e.target.checked);
-  // 打开/关闭要立刻听到效果（否则用户得等下一次焦点变化才能判断是否生效）。
-  try { applyAudioToVisibleNow(); } catch { /* ignore */ }
-  emit();
-}
 function onPauseOnBattery(e) { setSetting("pauseOnBattery", e.target.checked); emit(); }
 function onToggleLiveDiag() { toggleLiveDiag(); emit(); }
 // ── 「扩展」页签（一号模块：点击效果与拖尾效果）的处理器 ──────────────────────
@@ -4730,7 +4738,7 @@ function WallpaperPicker() {
       }),
       renderAdvancedTab({
         setSetting, setTransient,
-        onAdapterTarget, onEdgeCompatChange, onLayoutChange, onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, onMuteOnBlur, onToggleLiveDiag, sel,
+        onAdapterTarget, onEdgeCompatChange, onLayoutChange, onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, onToggleLiveDiag, sel,
         onStartEditCacheDir, onCancelEditCacheDir, onCacheDirDraft,
         onCacheDirBrowseInput, onCacheDirBrowseGo, onCacheDirBrowseEnter, onCacheDirBrowseUp, onPickCacheDir, onCloseCacheDirBrowse,
       }),
@@ -6004,15 +6012,15 @@ function apply(ctx) {
             hiddenHoldActive = true;
             emit();
           }
-        }, HIDDEN_PAUSE_DEBOUNCE_MS);
+        }, hiddenPauseDebounceMs());
       };
       applyHiddenHold();
       if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
         document.addEventListener("visibilitychange", applyHiddenHold);
         hiddenHoldBound = true;
       }
-      // 焦点/可见性一变：**先把音频刷一遍**再 emit。视觉暂停要走 1.2s 防抖（防实时渲染页
-      // 拆页冷重载），而"声音"是用户立刻能听见的 —— 让它跟着焦点走，不等防抖、不等 emit。
+      // 判定一变：先把音频刷一遍再 emit —— 让"声音"与"画面"在同一个 tick 内同步落地
+      // （画面停就静音、画面在播就出声），而不是等下一轮媒体同步。
       const onOcclusionChange = () => {
         try { applyAudioToVisibleNow(); } catch { /* 音频刷新失败不影响判定 */ }
         emit();

@@ -84,7 +84,7 @@
   }
 
   function renderAdvancedPowerSection(ctx) {
-    const { onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, onMuteOnBlur, sel } = ctx;
+    const { onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, sel } = ctx;
     return React.createElement(React.Fragment, null,
     // ── 省电：遮挡暂停（借鉴 Wallpaper Engine 的「被遮挡时暂停」）──
     React.createElement("div", { className: "we-picker__section" },
@@ -95,12 +95,8 @@
         }, weT("省电")),
       ),
       switchRow(weT("最小化/切页时暂停"), sel.pauseOnHidden, onPauseOnHidden, { key: "pause-hidden" }),
-      // 失焦静音：只压声音、不定格画面。解决"另一个窗口最大化盖住时，壁纸音乐还响好几秒"
-      // —— Chromium 的遮挡信号到得慢且不稳定，blur 是瞬时的。
-      switchRow(weT("失焦时静音壁纸"), sel.muteOnBlur, onMuteOnBlur, {
-        key: "mute-blur",
-        title: weT("壁纸音频跟随前台窗口：切到别的应用立刻静音、回来恢复。画面不受影响（不会把看得见的壁纸定格）；想边工作边听壁纸音乐可关掉。"),
-      }),
+      // （曾试过「失焦时静音壁纸」：真机反馈不好 —— 小窗浮在 DSH 上时视频还在播、声音却被掐掉。
+      //   已撤除：声音与画面同源同步，见 src/client-audio-playback.js 的同步纪律。）
       // 「被其它应用盖住时暂停」已撤除（2026-11-03）：那条代理用"满屏 + 失焦"近似"被覆盖"，
       // 真机上叠一个小窗（任务管理器）就会误判 ⇒ 看得见的壁纸被定格。整页被真正盖住时
       // Chromium 自己会把页面判成 hidden（走上面那一条），不需要猜。

@@ -32,7 +32,6 @@
     "pauseOnHidden": true,
     "pauseOnBlur": false,
     "pauseOnBattery": false,
-    "muteOnBlur": true,
     "flip": false,
     "objectFit": "cover",
     "contentRatingFilter": ["everyone", "pg13", "mature", "unrated"],

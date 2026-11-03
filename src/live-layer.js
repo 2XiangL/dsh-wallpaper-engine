@@ -164,7 +164,7 @@ function liveRenderUrl(selLike) {
     : selLike.sceneLiveSrc;
   const fit = SCENE_LIVE_FIT[selLike.objectFit] || "cover";
   const fps = SCENE_LIVE_FPS_VALUES.includes(selLike.sceneLiveFps) ? selLike.sceneLiveFps : 30;
-  const muted = (weAudioVolume() > 0 && !weAudioGatedByFocus()) ? "false" : "true";
+  const muted = weAudioVolume() > 0 ? "false" : "true";
   // 场景载荷的源：默认**宿主说了算**（inventory.sceneMediaBase = 独立壁纸媒体源的 origin，
   // 见 resolveSceneMediaBase —— 那里同时决定远程页面回落自身 origin 的口径）。
   // 宿主给空串（原生浏览器 / 媒体源不可用 / 库里没有可实时渲染的场景）⇒ 回落应用源，
@@ -217,7 +217,7 @@ function applyLiveControls(frame) {
     }
     // 闸内（正在淡入的新层）目标音量为 0：等旧层退场后再由
     // releaseRotationAudioGateFor 恢复。
-    const volume = (rotationAudioHoldActive() || weAudioGatedByFocus()) ? 0 : weAudioVolume();
+    const volume = rotationAudioHoldActive() ? 0 : weAudioVolume();
     if (liveApplied.volume !== volume && typeof wp.setVolume === "function") {
       wp.setVolume(volume);
       liveApplied.volume = volume;

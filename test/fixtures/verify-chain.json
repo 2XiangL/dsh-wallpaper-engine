@@ -119,7 +119,7 @@
         {
           "kind": "guard",
           "npm": null,
-          "file": "test/verify-audio-focus-mute.mjs",
+          "file": "test/verify-audio-sync.mjs",
           "args": [],
           "tier": "hard",
           "probe": false
@@ -1060,7 +1060,7 @@
         {
           "kind": "guard",
           "npm": null,
-          "file": "test/verify-audio-focus-mute.mjs",
+          "file": "test/verify-audio-sync.mjs",
           "args": [],
           "tier": "hard",
           "probe": false

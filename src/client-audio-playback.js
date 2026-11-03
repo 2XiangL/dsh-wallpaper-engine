@@ -12,28 +12,23 @@
 // 浏览器仍会在 seek/换源后出声，而只设 muted 会让音量滑块看起来没生效。
 // 轮换音频闸生效期间，闸内（= 正在淡入的新层）元素一律按 0 处理，见下方
 // openRotationAudioGate。
-/**
- * 失焦静音（`muteOnBlur`，默认开）：壁纸**音频**跟随前台窗口，画面不动。
+/*
+ * ── 音频与画面的同步纪律（2026-11-03 定稿）──────────────────────────────────
  *
- * 为什么需要这条独立闸：另一窗口最大化盖住本窗时，唯一的"被遮挡"信号来自 Chromium 的
- * 窗口遮挡跟踪 —— 真机实测从 2s 到 >20s 不等（甚至不报），而 `blur` 是同一瞬间就有的
- * 确定事件。声音先停、视觉继续：既解决"还响好几秒"，也不会把**看得见的**壁纸定格
- * （那正是上一版遮挡代理被撤掉的原因）。
+ * **声音只有一个开关：画面在不在播。** `weApplyAudio` 只读 `weAudioVolume()`（用户音量 ×
+ * 总开关）与轮换音频闸 —— **不读焦点、不读可见性**。
  *
- * ⚠️ 只作用于**应用音量**，不参与任何播放判定：`occlusionReason()` 看不到它 ⇒ 不会触发
- * 暂停 / 拆页冷重载，也不会出现在"为什么没在播"的归因里。用户关掉开关即恢复原行为。
+ * 曾经试过"失焦即静音"（muteOnBlur）：切走立刻静音、画面继续。真机反馈否掉了它 ——
+ * 一个**未最大化的小窗**浮在 DSH 上时，视频明明还在播，声音却被掐掉，听感就是"卡了一下"。
+ * 用户要的是**同步**而不是"声音更早停"：画面在播 ⇒ 出声，画面停 ⇒ 静音。
+ *
+ * 于是"另一窗口最大化后还响几秒"这件事改由**暂停判定自己变快**来解（见 client.js 的
+ * `hiddenPauseDebounceMs`：视频壁纸的隐藏防抖 1200ms → 250ms，因为视频 pause 是廉价的，
+ * 1.2s 那条防抖本来是给"实时渲染页拆页冷重载"用的）。声音随画面一起停，且更早停。
  */
-function weAudioGatedByFocus() {
-  try {
-    if (!selection || selection.muteOnBlur === false) return false;
-    if (typeof document === "undefined" || typeof document.hasFocus !== "function") return false;
-    return !document.hasFocus();
-  } catch { return false; }
-}
-
 function weApplyAudio(video) {
   if (!video) return;
-  const v = (isAudioGated(video) || weAudioGatedByFocus()) ? 0 : weAudioVolume();
+  const v = isAudioGated(video) ? 0 : weAudioVolume();
   try {
     video.volume = v;
     video.muted = v <= 0;
@@ -42,8 +37,9 @@ function weApplyAudio(video) {
 
 /**
  * 立刻把"当前应有的音量"刷到在屏媒体上 —— **不等 emit**。
- * 焦点/可见性变化的瞬间由 client.js 的 onOcclusionChange 调它：视觉暂停有 1.2s 防抖
- * （防的是实时渲染页拆页冷重载），声音没有理由跟着等。
+ * 播放判定变化的瞬间（隐藏/恢复、播放/暂停）由 client.js 的 onOcclusionChange 调它，
+ * 让音量**与画面同步**落地：画面在播 ⇒ 按设置出声，画面停 ⇒ 0。不掺焦点/可见性判断 ——
+ * 音量只由「用户音量 × 总开关 × 轮换音频闸」决定。
  * 幂等：值没变时写同样的 volume/muted 没有副作用。
  */
 function applyAudioToVisibleNow() {
@@ -55,8 +51,8 @@ function applyAudioToVisibleNow() {
     }
     if (sceneAudioEl) {
       weApplyAudio(sceneAudioEl);
-      // 静音期间顺带停掉解码；恢复时按当前设置与焦点重新起播（自动播放被拦就等用户点）。
-      if (weAudioVolume() > 0 && !weAudioGatedByFocus()) {
+      // 与画面同步：音量 > 0 就播、= 0 就停（自动播放被拦就等用户点）。
+      if (weAudioVolume() > 0) {
         const p = sceneAudioEl.play();
         if (p && typeof p.catch === "function") p.catch(() => { /* 等用户手势 */ });
       } else {
@@ -65,7 +61,7 @@ function applyAudioToVisibleNow() {
     }
     const live = layer ? liveFrameOf(layer) : null;
     if (live) {
-      const vol = weAudioGatedByFocus() ? 0 : weAudioVolume();
+      const vol = weAudioVolume();
       if (setLiveVolumeNow(live, vol)) liveApplied.volume = vol;
     }
   } catch { /* 音频刷新失败不影响播放判定 */ }
@@ -190,7 +186,7 @@ function syncSceneAudio(selLike) {
     try { sceneAudioEl.volume = 0; sceneAudioEl.muted = true; sceneAudioEl.pause(); } catch { /* ignore */ }
     return;
   }
-  if (weAudioVolume() > 0 && !weAudioGatedByFocus()) {
+  if (weAudioVolume() > 0) {
     const p = sceneAudioEl.play();
     if (p && typeof p.catch === "function") p.catch(() => { /* 自动播放被拦：用户点音乐开时再播 */ });
   } else {
