@@ -262,14 +262,12 @@ node .test-cache/install-batch3.mjs   # 把工作区已构建产物写进 profil
 
 ### 10.3 已判定但**刻意未做**（附理由，免得下一轮重走）
 
-- **P2 把侧栏底板的 backdrop 换成"烘焙副本"**：等价性**已证**（`[data-we-surface-root]` 是
-  `z-index:-1`，宿主整个 UI 帧在其上 ⇒ 底板背景只含「壁纸 + 均匀 scrim + fx canvas」，
-  均匀 alpha 与 blur 可交换）；实现不必用 ffmpeg/第二个解码器 —— `ctx.filter='blur()'; drawImage(video)`
-  到 480×270 canvas（`drawImage` 复用已解码帧），每 200–500ms 一次，成本 ≈0.2–0.5ms/次。
-  **未做**的原因：①它要镜像 `objectFit/flip/layerPosition/layerScale/parallax/wallpaperOpacity/wallpaperBlur/fpsCap`
-  八项状态，非过渡档还要回退 live；②输入卡 `::before` **不等价**（sticky 输入卡底下会滚过消息行，
-  见 `docs/DSH-UI-INTERFACES.md`），只对两块侧栏成立；③必须先有 rig 吞吐判据（<10% 就放弃），
-  否则又是一次"改了但证不出"。
+- **P2（已量，结论：不做）**：原计划把两块侧栏底板的 `backdrop-filter` 换成"低频烘焙的模糊副本"
+  （等价性可证、`drawImage` 不新建解码器）。**实测否掉了它**：运行时关掉左侧栏玻璃（`leftSidebarGlass:false`）
+  与双板对照，主线程 23.2 vs 20.0（噪声 ±2–3、方向还相反）、GPU 3D 29.2 vs 31.9 —— 一块满高侧栏霜面
+  **落在噪声里**。说明逐帧成本更接近**按面**计（每面一次的 backdrop 快照/回渲染目标固定开销），
+  而非按面积；而烘焙只是把 1 个面换成 1 个 canvas，还要镜像 8 项状态 ⇒ 收益小于风险。
+  ⇒ 有效杠杆是**减少霜面数量**（气泡族，`auto` 已在做），见 `MEASUREMENTS.md` 的 `p2-base2` 记录。
 - **P3 `glassMotionMode=auto-all`**（动壁纸时把输入卡/侧栏/工具卡一起降级）：机制已在（`data-we-wallpaper-motion`），
   只差枚举扩面 + 新设置值。**这是观感取舍**（动壁纸时侧栏也变近不透明），默认不动，等你点头。
 - **P4 锁屏 / 挂起 / 空闲暂停**：宿主侧押 `powerMonitor`（Electron 能力探测，不可用则整条不启用）。

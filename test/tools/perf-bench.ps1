@@ -187,6 +187,7 @@ public static class WeBench
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint a, uint b, bool attach);
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] private static extern bool SystemParametersInfo(uint action, uint param, ref RECT data, uint winIni);
 
     /// <summary>把窗口强行拉到前台（前台锁的标准绕法：挂到当前前台线程的输入队列上再 Set）。</summary>
@@ -197,8 +198,15 @@ public static class WeBench
         uint fgThread = GetWindowThreadProcessId(fg, out fgPid);
         uint me = GetCurrentThreadId();
         bool ok = false;
-        try { AttachThreadInput(me, fgThread, true); ok = SetForegroundWindow(h); }
-        finally { AttachThreadInput(me, fgThread, false); }
+        try {
+            AttachThreadInput(me, fgThread, true);
+            // 前台锁：非前台进程的 SetForegroundWindow 会被静默拒绝。先模拟一次 ALT 轻敲，
+            // 让本线程拿到"最近有输入"的资格，再 Set —— 否则整个 visible 相位会在
+            // "窗口没到前台"的状态下被量（甚至被 Chromium 判 hidden ⇒ 壁纸暂停 ⇒ 读数归零）。
+            keybd_event(0x12, 0, 0, UIntPtr.Zero);
+            keybd_event(0x12, 0, 2, UIntPtr.Zero);
+            ok = SetForegroundWindow(h);
+        } finally { AttachThreadInput(me, fgThread, false); }
         return ok;
     }
 
@@ -724,7 +732,7 @@ function Invoke-Phase {
       if ($mainHwnd -ne [IntPtr]::Zero) {
         [void][WeBench]::ShowWindow($mainHwnd, [WeBench]::SW_RESTORE)
         $fgAttemptOk = $false
-        for ($i = 0; $i -lt 3; $i++) {
+        for ($i = 0; $i -lt 6; $i++) {
           if ([WeBench]::ForceForeground($mainHwnd)) { $fgAttemptOk = $true; break }
           Start-Sleep -Milliseconds 120
         }
@@ -959,8 +967,8 @@ function Invoke-Phase {
 
     # 前台看**起点**：构造后立刻取的那一帧才是"我们摆出来的状态"；相位末尾用户可能已经点走了。
     if ($Name -eq 'visible' -and $fgStart -ne $mainHwnd) {
-      if ($RequireForeground) { $invalid.Add('foreground_not_acquired') }
-      else { $softWarn.Add(('foreground_not_acquired(fg_forced={0})' -f $fgAttemptOk)) }
+      # ALT 轻敲之后仍拿不到前台 ⇒ 这一相位的读数不可信（壁纸可能正被 hidden 暂停）。
+      $invalid.Add('foreground_not_acquired')
     }
     # 最大化：IsZoomed 是唯一 DPI 无关的直接判据；rect/可用区比值只作信息（本机会被 DPI 虚拟化）。
     $zoomed = if ($mainHwnd -ne [IntPtr]::Zero) { [WeBench]::IsZoomed($mainHwnd) } else { $false }
