@@ -64,8 +64,14 @@ param(
   [int]$Repeat = 1,
   [int]$Interval = 1000,             # 采样间隔 ms
   [int]$RootPid = 0,
+  # covered 相位默认先把窗口**最大化**：遮挡代理（pauseOnCovered）要求窗口铺满可用区 ≥98%，
+  # 不最大化就永远不会触发，量到的是"没暂停"的旧行为。
+  [bool]$MaximizeForCovered = $true,
   [ValidateSet('tool', 'normal')]
   [string]$CoverStyle = 'tool',
+  # 遮挡窗是否**抢焦点**。真实场景里盖住 DSH 的是别的应用 ⇒ 焦点必然离开；只有焦点离开，
+  # pauseOnCovered 才可能成立。默认开（要测"不抢焦点"的旧行为时传 -CoverTakeFocus:$false）。
+  [bool]$CoverTakeFocus = $true,
   [string]$OutDir = '',
   [string]$Note = '',
   [switch]$DryRun
@@ -147,6 +153,21 @@ public static class WeBench
     [DllImport("user32.dll")] private static extern bool TranslateMessage(ref MSG msg);
     [DllImport("user32.dll")] private static extern IntPtr DispatchMessage(ref MSG msg);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint a, uint b, bool attach);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+
+    /// <summary>把窗口强行拉到前台（前台锁的标准绕法：挂到当前前台线程的输入队列上再 Set）。</summary>
+    public static bool ForceForeground(IntPtr h)
+    {
+        IntPtr fg = GetForegroundWindow();
+        uint fgPid;
+        uint fgThread = GetWindowThreadProcessId(fg, out fgPid);
+        uint me = GetCurrentThreadId();
+        bool ok = false;
+        try { AttachThreadInput(me, fgThread, true); ok = SetForegroundWindow(h); }
+        finally { AttachThreadInput(me, fgThread, false); }
+        return ok;
+    }
 
     public const int SW_RESTORE = 9;
     public const int SW_MINIMIZE = 6;
@@ -197,7 +218,7 @@ public static class WeBench
     /// 决定了 covered 相位能不能真的把页面判成 hidden。两种形态都能覆盖，**语义不同**，
     /// 所以做成可选项并在报告里标出来，不要拿一种形态的结论去套另一种。
     /// </summary>
-    public static void ShowCover(bool normal)
+    public static void ShowCover(bool normal, bool takeFocus = false)
     {
         if (_cover != IntPtr.Zero) return;
         if (!_classReady)
@@ -215,13 +236,16 @@ public static class WeBench
         int y = GetSystemMetrics(SM_YVIRTUALSCREEN);
         int w = GetSystemMetrics(SM_CXVIRTUALSCREEN);
         int h = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-        int exStyle = WS_EX_TOPMOST | WS_EX_NOACTIVATE | (normal ? 0 : WS_EX_TOOLWINDOW);
+        int exStyle = WS_EX_TOPMOST | (takeFocus ? 0 : WS_EX_NOACTIVATE) | (normal ? 0 : WS_EX_TOOLWINDOW);
         _cover = CreateWindowExW(exStyle,
             "WeBenchCoverWnd", "we-perf-cover", WS_POPUP | WS_VISIBLE, x, y, w, h,
             IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
         ShowWindow(_cover, 5 /* SW_SHOW */);
+        if (takeFocus) ForceForeground(_cover);
         Pump();
     }
+
+    public static IntPtr CoverHandle() { return _cover; }
 
     public static void HideCover()
     {
@@ -363,10 +387,12 @@ function Invoke-Phase {
     }
     'covered' {
       if ($mainHwnd -ne [IntPtr]::Zero) {
-        [void][WeBench]::ShowWindow($mainHwnd, [WeBench]::SW_RESTORE)
+        $winCmd = if ($MaximizeForCovered) { 3 } else { [WeBench]::SW_RESTORE }
+        [void][WeBench]::ShowWindow($mainHwnd, $winCmd)
         $restore = $true
       }
-      [WeBench]::ShowCover($CoverStyle -eq 'normal')
+      [WeBench]::ShowCover($CoverStyle -eq 'normal')  # 焦点由下面的 ForceForeground 处理
+      if ($CoverTakeFocus) { [void][WeBench]::ForceForeground([WeBench]::CoverHandle()) }
     }
     'minimized' {
       if ($mainHwnd -ne [IntPtr]::Zero) { [void][WeBench]::ShowWindow($mainHwnd, [WeBench]::SW_MINIMIZE) }
