@@ -71,6 +71,46 @@
 
 结果：两次尝试都没抢到焦点（`SetForegroundWindow` 被前台锁拒绝；补 `AttachThreadInput` 的补丁未编译通过），读数反而从 30.5% 升到 42.2%（抢来的置顶小窗本身增加了合成）。**判为失败实验**，不再投入；改用"停用玻璃行"的 A/B（需要重启宿主），步骤写进主文档 §9。
 
+### 2026-11-03 11:55 · 改造后 + **玻璃子包已装**（`after-glass-v1`）
+
+同一台机器、同一张 1080p30 视频壁纸、同一套相位（本轮的 covered 用"最大化 + 遮挡窗抢焦点"，
+即真实形态；`pauseOnCovered` 与 `pauseOnHidden` 两条都在场）。
+
+| 相位 | 构造 | renderer CPU 单核% | GPU 进程 CPU 单核% | GPU 3D % | renderer WS |
+|---|---|---:|---:|---:|---:|
+| visible | 还原+置前，界面静止 | 34.46 | 33.98 | 12.60 | 509.7 MB |
+| covered | 最大化 + 顶置不透明窗（抢焦点） | 19.65 | 27.23 | 12.67 | 506.7 MB |
+| minimized | `SW_MINIMIZE` | 1.52 | 0.00 | 0.00 | 404.6 MB |
+
+暂停证据（同一轮 diag）：
+```
+11:54:39  play-state · playing=true  hidden=0 focus=0 window-blur
+11:54:42  play-state · playing=false hold=窗口被覆盖(pauseOnCovered) hidden=0 focus=0
+11:55:10  play-state · playing=true  hidden=0 focus=1 window-focus
+11:55:12  play-state · playing=false hold=标签页隐藏(pauseOnHidden) hidden=1
+```
+⇒ 遮挡代理在真实形态下**按设计生效**（1.5s 防抖后暂停、回焦点恢复）；最小化走另一条既有的 pauseOnHidden。
+
+### 三组数据怎么比（重要，别直接相减）
+
+| # | 时间 | 构建 | 玻璃 | visible | covered | minimized |
+|---|---|---|---:|---:|---:|---:|
+| A | 00:10 | **npm 1.4.0**（改造前；玻璃 CSS 内联在主包） | 有 | 53.29 | 63.20 | 0.81 |
+| B | 11:30 | 分支构建（本分支把玻璃抽成独立子包） | **无**（子包未装） | 5.93 | 2.89 | 0.30 |
+| C | 11:55 | 分支构建 | **有**（子包已装） | 34.46 | 19.65 | 1.52 |
+
+- **B ↔ C 是干净的对照**（同构建、同机、同壁纸，只差玻璃）：可见档 **5.93 → 34.46 单核%**、
+  GPU 进程 **8.98 → 33.98**、GPU 3D **4.93 → 12.60**、renderer 工作集 **294.6 → 509.7 MB**。
+  即：**液态玻璃这套逐面 `backdrop-filter` 在这台机器上约值 0.28 个核 + 0.22 个 GPU 进程核 + 215 MB 内存**。
+  这正是 `glassMotionMode=auto` 要削的那一块。
+- **A ↔ C 方向上有改善但不算受控对照**：A 是改造前的旧构建（玻璃内联、且没有本轮的省电改造），
+  C 是分支构建；两者之间还差着"玻璃出户 + 本轮改动"，而且 A 那轮的 covered 用的是**不抢焦点**的
+  遮挡窗（Chromium 不会判 hidden、代理也不会触发），所以 A 的 63.20 里混着装置自身的失真。
+  公平的 A/B 需要把旧构建换回来、用同一版装置再跑一遍（待办）。
+- **一条对上一轮结论的更正**：本轮遮挡窗**抢焦点**之后，Chromium 自己就把页面判成了 `hidden`
+  （`tab-hidden` 出现在 blur 之后 53ms）⇒ **真实应用盖住 DSH 时，暂停由 pauseOnHidden 兜住**；
+  `pauseOnCovered` 是它漏判时的兜底（不抢焦点的工具窗、遮挡跟踪的 2–3s 竞态），本轮实测确实触发。
+
 ### 待补（下一批）
 
 - 玻璃行停用 vs 全开的真机 A/B（`visible` 相位，3×60s，取中位）。
