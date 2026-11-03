@@ -102,6 +102,10 @@
 - `pauseOnHidden`（默认开）：`document.hidden` 持续 ≥1.2s 才暂停（瞬时抖动不触发冷重载）；
 - `pauseOnBlur` / `pauseOnBattery`（默认关）：桌面目标下失焦时壁纸多半仍整块可见，故不默认开。
 
+**为什么删掉之后用户的"还响几秒"也解决了**：实测（`MEASUREMENTS.md` 的 `pause-latency`）表明那段
+延迟的大头是 Chromium 的遮挡信号本身（2s–>20s 不等），调防抖治不了。于是把**声音**从"遮挡判定"里
+拆出来，跟 `blur`（瞬时、确定）走：`muteOnBlur` 默认开，切走即静音、回来恢复，**画面不动**。
+
 代价要说清楚：§2 的 `covered` 相位（"被完全盖住却不省电"）**重新变成缺口** —— 这一块改由
 宿主侧的**真实**电源/会话事件（锁屏 / 挂起）来补，而不是靠几何+焦点的猜测。旧配置里的
 `pauseOnCovered` 键在消毒时按未知键丢弃，不报错。
@@ -253,6 +257,7 @@ node .test-cache/install-batch3.mjs   # 把工作区已构建产物写进 profil
 | P6-3 | diag 目录 `mkdirSync` 记忆化（外部删目录时自愈） | 纯 IO | `verify-logging` / `verify-host-diag` |
 | P6-4 | `serveBytes` 的 `existsSync + statSync` 合成一次 `statSync` | 目录语义与旧路径一致（stat 成功、流打开才失败） | `verify-json-response` |
 | 量具 | `perf-bench.ps1` 升到 schema /2（五维 + 状态断言 + 修 5 处会静默量错的口径） | —— | 见 `MEASUREMENTS.md` 的"采集方法" |
+| 新增 | **失焦静音 `muteOnBlur`（默认开）**：`blur` 瞬间把壁纸**音量**压到 0、回来恢复；画面不动 | 只改应用音量，不参与播放判定 ⇒ 不会定格可见的壁纸 | `verify-audio-focus-mute`（12 条：语义 / 负对照 / 恢复 / 场景 BGM / 单一判定源 / 接线顺序 / 默认值） |
 | 撤除 | **遮挡代理 `pauseOnCovered` 整条删除**（代码 / 设置 / 界面行 / 词表 / 预设 / 判据） | 回到"最原始实现"：只认 `document.hidden` + 可选失焦/电池 | 用户真机反馈：全屏时叠一个小窗就误暂停 ⇒ §5.1 末 |
 
 ### 10.3 已判定但**刻意未做**（附理由，免得下一轮重走）

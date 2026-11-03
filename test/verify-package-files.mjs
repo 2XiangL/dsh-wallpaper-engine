@@ -410,7 +410,7 @@ async function main() {
     // 再：verify 97→98 / all 110→111 —— 新增 `test/verify-lazy-engine-dir.mjs`（#218 运行期依赖惰性解析）。
     // 再：verify 98→99 / all 111→112 —— 新增 `test/verify-cache-keys.mjs`（#208 缓存键短哈希、与 checkout 深度解耦）。
     // 再：verify 99→100 / all 112→113 —— 新增 `test/verify-titlebar-anchor.mjs`（#235 标题栏运行时锚点探针）。
-    const CHAIN_FLOOR = { verify: 101, docs: 6, smoke: 6, all: 114 };
+    const CHAIN_FLOOR = { verify: 102, docs: 6, smoke: 6, all: 115 };
     /** 地板表与 GROUPS 的对齐体检：键名必须与**组名**逐一对齐（纯函数 ⇒ 负对照可直接喂）。 */
     const floorGaps = (groups, floors) => groups.map(([, g]) => g).filter((g) => !Number.isInteger(floors[g]));
     const problems = floorGaps(GROUPS, CHAIN_FLOOR).map((g) => '地板表缺组 ' + g

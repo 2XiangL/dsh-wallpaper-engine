@@ -2703,6 +2703,12 @@ function onFlip(e) { setSetting("flip", e.target.checked); emit(); }
 function onAdapterTarget(e) { setSetting("adapterTarget", e.target.value); emit(); }
 function onPauseOnHidden(e) { setSetting("pauseOnHidden", e.target.checked); emit(); }
 function onPauseOnBlur(e) { setSetting("pauseOnBlur", e.target.checked); emit(); }
+function onMuteOnBlur(e) {
+  setSetting("muteOnBlur", e.target.checked);
+  // 打开/关闭要立刻听到效果（否则用户得等下一次焦点变化才能判断是否生效）。
+  try { applyAudioToVisibleNow(); } catch { /* ignore */ }
+  emit();
+}
 function onPauseOnBattery(e) { setSetting("pauseOnBattery", e.target.checked); emit(); }
 function onToggleLiveDiag() { toggleLiveDiag(); emit(); }
 // ── 「扩展」页签（一号模块：点击效果与拖尾效果）的处理器 ──────────────────────
@@ -4724,7 +4730,7 @@ function WallpaperPicker() {
       }),
       renderAdvancedTab({
         setSetting, setTransient,
-        onAdapterTarget, onEdgeCompatChange, onLayoutChange, onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, onToggleLiveDiag, sel,
+        onAdapterTarget, onEdgeCompatChange, onLayoutChange, onPauseOnBattery, onPauseOnBlur, onPauseOnHidden, onMuteOnBlur, onToggleLiveDiag, sel,
         onStartEditCacheDir, onCancelEditCacheDir, onCacheDirDraft,
         onCacheDirBrowseInput, onCacheDirBrowseGo, onCacheDirBrowseEnter, onCacheDirBrowseUp, onPickCacheDir, onCloseCacheDirBrowse,
       }),
@@ -6005,7 +6011,12 @@ function apply(ctx) {
         document.addEventListener("visibilitychange", applyHiddenHold);
         hiddenHoldBound = true;
       }
-      const onOcclusionChange = () => { emit(); };
+      // 焦点/可见性一变：**先把音频刷一遍**再 emit。视觉暂停要走 1.2s 防抖（防实时渲染页
+      // 拆页冷重载），而"声音"是用户立刻能听见的 —— 让它跟着焦点走，不等防抖、不等 emit。
+      const onOcclusionChange = () => {
+        try { applyAudioToVisibleNow(); } catch { /* 音频刷新失败不影响判定 */ }
+        emit();
+      };
       const ocListeners = [];
       if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
         for (const t of ["visibilitychange", "blur", "focus"]) {

@@ -57,7 +57,7 @@
 | 38 | `/props` | packages/media-bridge/lib/routes/props.js:46 | 箭头 | disposers base mediaMap userPropsFor parseUserPropDefs entryDirPrefix …(+2) | 9 |
 | 39 | `/live-frame` | packages/media-bridge/lib/routes/live-frame.js:44 | 箭头 | disposers base mediaMap serveFile traceRequests liveFrameFile …(+3) | 3 |
 | 40 | `/scene-video` | packages/media-bridge/lib/routes/scene-media.js:57 | 箭头 | disposers base mediaMap serveFile ensureFrameCacheDir sceneVideoProbeKey …(+6) | 3 |
-| 41 | `/scene-audio` | packages/media-bridge/lib/routes/scene-media.js:141 | 箭头 | disposers base mediaMap serveFile ensureSceneAudio | 4 |
+| 41 | `/scene-audio` | packages/media-bridge/lib/routes/scene-media.js:141 | 箭头 | disposers base mediaMap serveFile ensureSceneAudio | 5 |
 | 42 | `/upload` | packages/media-bridge/lib/routes/upload.js:73 | 箭头 | disposers base tokenFor UPLOAD_EXT UPLOAD_MAX_BYTES ensureUploadDir …(+7) | 6 |
 | 43 | `/remove` | packages/media-bridge/lib/routes/upload.js:223 | 箭头 | disposers base CONTROL_JSON_MAX_BYTES ensureUploadDir removeUploadMeta resolveUploadFile …(+2) | 1 |
 | 44 | `/upload-dir` | packages/media-bridge/lib/routes/upload.js:280 | 箭头 | disposers base CONTROL_JSON_MAX_BYTES setUploadDir normalizeUserDir armBodyIdleTimeout …(+1) | 3 |

@@ -119,6 +119,14 @@
         {
           "kind": "guard",
           "npm": null,
+          "file": "test/verify-audio-focus-mute.mjs",
+          "args": [],
+          "tier": "hard",
+          "probe": false
+        },
+        {
+          "kind": "guard",
+          "npm": null,
           "file": "test/verify-adapter.mjs",
           "args": [],
           "tier": "hard",
@@ -1045,6 +1053,14 @@
           "kind": "guard",
           "npm": null,
           "file": "test/verify-occlusion-client.mjs",
+          "args": [],
+          "tier": "hard",
+          "probe": false
+        },
+        {
+          "kind": "guard",
+          "npm": null,
+          "file": "test/verify-audio-focus-mute.mjs",
           "args": [],
           "tier": "hard",
           "probe": false

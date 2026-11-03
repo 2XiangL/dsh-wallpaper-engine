@@ -12,13 +12,63 @@
 // 浏览器仍会在 seek/换源后出声，而只设 muted 会让音量滑块看起来没生效。
 // 轮换音频闸生效期间，闸内（= 正在淡入的新层）元素一律按 0 处理，见下方
 // openRotationAudioGate。
+/**
+ * 失焦静音（`muteOnBlur`，默认开）：壁纸**音频**跟随前台窗口，画面不动。
+ *
+ * 为什么需要这条独立闸：另一窗口最大化盖住本窗时，唯一的"被遮挡"信号来自 Chromium 的
+ * 窗口遮挡跟踪 —— 真机实测从 2s 到 >20s 不等（甚至不报），而 `blur` 是同一瞬间就有的
+ * 确定事件。声音先停、视觉继续：既解决"还响好几秒"，也不会把**看得见的**壁纸定格
+ * （那正是上一版遮挡代理被撤掉的原因）。
+ *
+ * ⚠️ 只作用于**应用音量**，不参与任何播放判定：`occlusionReason()` 看不到它 ⇒ 不会触发
+ * 暂停 / 拆页冷重载，也不会出现在"为什么没在播"的归因里。用户关掉开关即恢复原行为。
+ */
+function weAudioGatedByFocus() {
+  try {
+    if (!selection || selection.muteOnBlur === false) return false;
+    if (typeof document === "undefined" || typeof document.hasFocus !== "function") return false;
+    return !document.hasFocus();
+  } catch { return false; }
+}
+
 function weApplyAudio(video) {
   if (!video) return;
-  const v = isAudioGated(video) ? 0 : weAudioVolume();
+  const v = (isAudioGated(video) || weAudioGatedByFocus()) ? 0 : weAudioVolume();
   try {
     video.volume = v;
     video.muted = v <= 0;
   } catch { /* ignore */ }
+}
+
+/**
+ * 立刻把"当前应有的音量"刷到在屏媒体上 —— **不等 emit**。
+ * 焦点/可见性变化的瞬间由 client.js 的 onOcclusionChange 调它：视觉暂停有 1.2s 防抖
+ * （防的是实时渲染页拆页冷重载），声音没有理由跟着等。
+ * 幂等：值没变时写同样的 volume/muted 没有副作用。
+ */
+function applyAudioToVisibleNow() {
+  try {
+    const layer = (typeof document !== "undefined" && typeof document.getElementById === "function")
+      ? document.getElementById(LAYER_ID) : null;
+    if (layer && typeof layer.querySelectorAll === "function") {
+      for (const el of layerMediaEls(layer)) weApplyAudio(el);
+    }
+    if (sceneAudioEl) {
+      weApplyAudio(sceneAudioEl);
+      // 静音期间顺带停掉解码；恢复时按当前设置与焦点重新起播（自动播放被拦就等用户点）。
+      if (weAudioVolume() > 0 && !weAudioGatedByFocus()) {
+        const p = sceneAudioEl.play();
+        if (p && typeof p.catch === "function") p.catch(() => { /* 等用户手势 */ });
+      } else {
+        try { sceneAudioEl.pause(); } catch { /* ignore */ }
+      }
+    }
+    const live = layer ? liveFrameOf(layer) : null;
+    if (live) {
+      const vol = weAudioGatedByFocus() ? 0 : weAudioVolume();
+      if (setLiveVolumeNow(live, vol)) liveApplied.volume = vol;
+    }
+  } catch { /* 音频刷新失败不影响播放判定 */ }
 }
 
 // ── 轮换音频闸：BGM 等上一张完全退场后再起播 ─────────────────────────────
@@ -140,7 +190,7 @@ function syncSceneAudio(selLike) {
     try { sceneAudioEl.volume = 0; sceneAudioEl.muted = true; sceneAudioEl.pause(); } catch { /* ignore */ }
     return;
   }
-  if (weAudioVolume() > 0) {
+  if (weAudioVolume() > 0 && !weAudioGatedByFocus()) {
     const p = sceneAudioEl.play();
     if (p && typeof p.catch === "function") p.catch(() => { /* 自动播放被拦：用户点音乐开时再播 */ });
   } else {

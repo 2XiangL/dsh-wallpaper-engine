@@ -21,6 +21,28 @@
 
 ## 记录
 
+### 2026-11-03 15:35 · 「另一窗口最大化」到「壁纸停播」的延迟（`pause-latency`）
+
+探针：`.test-cache/pause-latency-probe.ps1` —— 建一块**最大化 + 置顶 + 抢焦点**的普通顶层窗盖住 DSH
+工作区，记 t0，然后盯 diag JSONL 里新出现的 `play-state` 行（`hidden=1` / `playing=false`）。3 次。
+
+| 次序 | 首次 `hidden=1` | 首次 `playing=false` | hold |
+|---:|---:|---:|---|
+| 1 | 11.9 s | 15.0 s | 标签页隐藏(pauseOnHidden) |
+| 2 | 未出现（>20 s） | 未出现 | — |
+| 3 | 未出现 | 2.1 s | 标签页隐藏(pauseOnHidden) |
+
+**读法**：延迟的大头**不是**我们那条 1.2s 防抖，而是 **Chromium 的窗口遮挡跟踪** —— 同一形态下
+从 2s 到 >20s 不等、甚至不报（与之前"本壳不把覆盖判成 hidden"的结论是同一件事的不同侧面）。
+所以「另一窗口最大化后音乐还响几秒」不能靠调防抖解决。
+
+⇒ 结论（已落地）：把**声音**与**画面**分开 —— 声音跟 `blur`（瞬时、确定）走，画面仍走
+`document.hidden` + 1.2s 防抖。见 RESOURCE-OPTIMIZATION §10.2 的 `muteOnBlur` 行。
+
+> 口径提醒：上表的 `playing=false` 是**diag 行**出现的时刻，不等于音量真正停止的时刻
+> （日志由 `occlusion-recheck` 与 focus/blur 监听写，前者最多晚 3s）⇒ 这张表只用于比较
+> "遮挡信号 vs 我们的防抖"谁是大头，不能当音频停播的精确延迟。
+
 > ⚠️ **2026-11-03 之后的可比性**：表中 `covered` / `partial-cover` 两档的"暂停"读数是**撤除遮挡代理之前**
 > 的结果（代理 = 单屏 + 满屏 + 失焦 ≥1.5s）。代理已删 ⇒ 这两档今后量到的是"不暂停"（与 visible 同量级）。
 > 需要"看不见时归零"的证据时，改看 `minimized`（`pauseOnHidden` 仍是原实现）与后续的锁屏/挂起档。

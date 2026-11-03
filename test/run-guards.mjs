@@ -126,6 +126,9 @@ const VERIFY_STEPS = [
   step('test/verify-scene-probe.mjs'),
   step('test/verify-occlusion-hub.mjs'),
   step('test/verify-occlusion-client.mjs'),
+  // 失焦静音（muteOnBlur）：音频闸的语义 + "不许进 occlusionReason" 的单一判定源纪律。
+  // 归硬档：写进判定源就会退化成"失焦即暂停"（= 撤掉的遮挡代理，叠个小窗就定格可见壁纸）。
+  step('test/verify-audio-focus-mute.mjs'),
   step('test/verify-adapter.mjs'),
   step('test/verify-theme-follow.mjs'),
   step('test/verify-logging.mjs'),
